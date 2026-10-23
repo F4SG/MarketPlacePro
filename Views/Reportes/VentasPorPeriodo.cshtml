@@ -1,0 +1,50 @@
+@model MarketPlacePro.Models.ReporteVentasViewModel
+@{
+    ViewData["Title"] = "Ventas por período";
+}
+<h1>Ventas por período</h1>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <label>Desde</label>
+        <input type="date" name="desde" value="@Model.Desde.ToString("yyyy-MM-dd")" class="form-control" />
+    </div>
+    <div class="col-auto">
+        <label>Hasta</label>
+        <input type="date" name="hasta" value="@Model.Hasta.ToString("yyyy-MM-dd")" class="form-control" />
+    </div>
+    <div class="col-auto">
+        <label>Estado</label>
+        <select name="estado" class="form-control">
+            <option value="completada" selected="@(Model.Estado == "completada" ? "selected" : null)">Completada</option>
+            <option value="pendiente" selected="@(Model.Estado == "pendiente" ? "selected" : null)">Pendiente</option>
+            <option value="en_proceso" selected="@(Model.Estado == "en_proceso" ? "selected" : null)">En proceso</option>
+        </select>
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+    </div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr><th>Producto</th><th>Categoría</th><th>Cantidad vendida</th><th>Monto total</th></tr>
+    </thead>
+    <tbody>
+    @foreach (var fila in Model.Filas)
+    {
+        <tr>
+            <td>@fila.Producto</td>
+            <td>@fila.Categoria</td>
+            <td>@fila.CantidadVendida</td>
+            <td>Bs @fila.MontoTotal.ToString("F2")</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    Pedidos en el período: <strong>@Model.TotalPedidos</strong> —
+    Monto total: <strong>Bs @Model.MontoTotal.ToString("F2")</strong> —
+    Producto más vendido: <strong>@(Model.ProductoMasVendido ?? "—")</strong>
+</div>
