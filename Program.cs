@@ -16,6 +16,16 @@ builder.Services.AddDbContext<MarketPlaceProContext>(options =>
 
 var app = builder.Build();
 
+var cantidadUsuarios = app.Configuration.GetValue<int>("DatosIniciales:CantidadUsuarios");
+var cantidadProductos = app.Configuration.GetValue<int>("DatosIniciales:CantidadProductos");
+if (cantidadUsuarios > 0)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var context = scope.ServiceProvider.GetRequiredService<MarketPlaceProContext>();
+    await context.Database.MigrateAsync();
+    await MarketPlaceSeeder.InicializarAsync(context, cantidadUsuarios, cantidadProductos);
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
