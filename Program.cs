@@ -1,15 +1,24 @@
+using MarketPlacePro.Data;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+// Configurar cultura invariante para consistencia de campos decimales (precios y montos)
+var cultura = new System.Globalization.CultureInfo("en-US");
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = cultura;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = cultura;
+
+builder.Services.AddControllersWithViews()
+    .AddMvcOptions(options => options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true);
+
+builder.Services.AddDbContext<MarketPlaceProContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("MarketPlacePro")));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
