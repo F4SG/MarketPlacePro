@@ -1,0 +1,11 @@
+@model MarketPlacePro.Models.Usuario
+<dl class="row">
+    <dt class="col-sm-3">Nombre</dt><dd class="col-sm-9">@Model.Nombre</dd>
+    <dt class="col-sm-3">Correo</dt><dd class="col-sm-9">@Model.Correo</dd>
+    <dt class="col-sm-3">Ciudad</dt><dd class="col-sm-9">@Model.Ciudad</dd>
+    <dt class="col-sm-3">Teléfono</dt><dd class="col-sm-9">@Model.Telefono</dd>
+    <dt class="col-sm-3">Fecha de registro</dt><dd class="col-sm-9">@Model.FechaRegistro?.ToString("dd/MM/yyyy HH:mm")</dd>
+    <dt class="col-sm-3">Rol</dt><dd class="col-sm-9">@Model.Rol</dd>
+    <dt class="col-sm-3">Tienda</dt><dd class="col-sm-9">@Model.NombreTienda</dd>
+    <dt class="col-sm-3">Descripción de la tienda</dt><dd class="col-sm-9">@Model.DescripcionTienda</dd>
+</dl>
