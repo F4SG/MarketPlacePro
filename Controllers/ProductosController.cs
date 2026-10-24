@@ -49,57 +49,63 @@ namespace MarketPlacePro.Controllers
         // GET: Productos/Create
         public IActionResult Create()
         {
-            ViewData["CategoriaId"] = new SelectList(_context.Categorias, "Id", "Nombre");
-            ViewData["UsuarioId"] = new SelectList(_context.Usuarios, "Id", "Contrasena");
+            CargarListas();
             return View();
         }
 
         // POST: Productos/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
+        public async Task<IActionResult> Create(
+            [Bind("Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
         {
+            if (!await _context.Categorias.AnyAsync(c => c.Id == producto.CategoriaId))
+            {
+                ModelState.AddModelError(nameof(Producto.CategoriaId), "La categoría seleccionada no existe.");
+            }
+            if (!await _context.Usuarios.AnyAsync(u => u.Id == producto.UsuarioId && u.Rol == "vendedor"))
+            {
+                ModelState.AddModelError(nameof(Producto.UsuarioId), "El vendedor seleccionado no existe.");
+            }
+
             if (ModelState.IsValid)
             {
                 _context.Add(producto);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CategoriaId"] = new SelectList(_context.Categorias, "Id", "Nombre", producto.CategoriaId);
-            ViewData["UsuarioId"] = new SelectList(_context.Usuarios, "Id", "Contrasena", producto.UsuarioId);
+
+            CargarListas(producto.CategoriaId, producto.UsuarioId);
             return View(producto);
         }
 
         // GET: Productos/Edit/5
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
-            var producto = await _context.Productos.FindAsync(id);
-            if (producto == null)
-            {
-                return NotFound();
-            }
-            ViewData["CategoriaId"] = new SelectList(_context.Categorias, "Id", "Nombre", producto.CategoriaId);
-            ViewData["UsuarioId"] = new SelectList(_context.Usuarios, "Id", "Contrasena", producto.UsuarioId);
+            var producto = await _context.Productos.FindAsync(id.Value);
+            if (producto == null) return NotFound();
+
+            CargarListas(producto.CategoriaId, producto.UsuarioId);
             return View(producto);
         }
 
         // POST: Productos/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(long id, [Bind("Id,Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
+        public async Task<IActionResult> Edit(long id,
+            [Bind("Id,Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
         {
-            if (id != producto.Id)
+            if (id != producto.Id) return NotFound();
+
+            if (!await _context.Categorias.AnyAsync(c => c.Id == producto.CategoriaId))
             {
-                return NotFound();
+                ModelState.AddModelError(nameof(Producto.CategoriaId), "La categoría seleccionada no existe.");
+            }
+            if (!await _context.Usuarios.AnyAsync(u => u.Id == producto.UsuarioId && u.Rol == "vendedor"))
+            {
+                ModelState.AddModelError(nameof(Producto.UsuarioId), "El vendedor seleccionado no existe.");
             }
 
             if (ModelState.IsValid)
@@ -111,19 +117,13 @@ namespace MarketPlacePro.Controllers
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!ProductoExists(producto.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    if (!await _context.Productos.AnyAsync(p => p.Id == producto.Id)) return NotFound();
+                    throw;
                 }
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CategoriaId"] = new SelectList(_context.Categorias, "Id", "Nombre", producto.CategoriaId);
-            ViewData["UsuarioId"] = new SelectList(_context.Usuarios, "Id", "Contrasena", producto.UsuarioId);
+
+            CargarListas(producto.CategoriaId, producto.UsuarioId);
             return View(producto);
         }
 
@@ -160,6 +160,17 @@ namespace MarketPlacePro.Controllers
 
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
+        }
+
+        private void CargarListas(long? categoriaSeleccionada = null, long? vendedorSeleccionado = null)
+        {
+            ViewData["CategoriaId"] = new SelectList(
+                _context.Categorias.AsNoTracking().OrderBy(c => c.Nombre),
+                "Id", "Nombre", categoriaSeleccionada);
+
+            ViewData["UsuarioId"] = new SelectList(
+                _context.Usuarios.AsNoTracking().Where(u => u.Rol == "vendedor").OrderBy(u => u.Nombre),
+                "Id", "Nombre", vendedorSeleccionado);
         }
 
         private bool ProductoExists(long id)
