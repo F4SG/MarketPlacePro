@@ -1,0 +1,30 @@
+@model MarketPlacePro.Models.DetallePedido
+
+@{
+    ViewData["Title"] = "Detalle del pedido";
+}
+
+<h1>Detalle del pedido</h1>
+
+<dl class="row">
+    <dt class="col-sm-3">Producto</dt>
+    <dd class="col-sm-9">@Model.NombreProducto</dd>
+
+    <dt class="col-sm-3">Precio unitario</dt>
+    <dd class="col-sm-9">@Model.PrecioUnitario.ToString("N2")</dd>
+
+    <dt class="col-sm-3">Cantidad</dt>
+    <dd class="col-sm-9">@Model.Cantidad</dd>
+
+    <dt class="col-sm-3">Subtotal</dt>
+    <dd class="col-sm-9">@Model.Subtotal.ToString("N2")</dd>
+
+    <dt class="col-sm-3">Número de pedido</dt>
+    <dd class="col-sm-9">@Model.Pedido.NumeroPedido</dd>
+
+    <dt class="col-sm-3">Producto seleccionado</dt>
+    <dd class="col-sm-9">@Model.Producto.Nombre</dd>
+</dl>
+
+<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Editar</a>
+<a asp-action="Index" class="btn btn-secondary">Volver</a>
