@@ -1,0 +1,25 @@
+@model IEnumerable<MarketPlacePro.Models.Usuario>
+@{ ViewData["Title"] = "Usuarios"; }
+<h1>Usuarios</h1>
+<p><a asp-action="Create" class="btn btn-primary">Registrar usuario</a></p>
+@if (!Model.Any())
+{
+    <p>No hay usuarios registrados.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead><tr><th>Nombre</th><th>Correo</th><th>Ciudad</th><th>Rol</th><th>Tienda</th><th>Acciones</th></tr></thead>
+            <tbody>
+            @foreach (var usuario in Model)
+            {
+                <tr>
+                    <td>@usuario.Nombre</td><td>@usuario.Correo</td><td>@usuario.Ciudad</td><td>@usuario.Rol</td><td>@usuario.NombreTienda</td>
+                    <td><a asp-action="Edit" asp-route-id="@usuario.Id">Editar</a> | <a asp-action="Details" asp-route-id="@usuario.Id">Detalles</a> | <a asp-action="Delete" asp-route-id="@usuario.Id">Eliminar</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

@@ -1,0 +1,11 @@
+@model MarketPlacePro.Models.Usuario
+@{ ViewData["Title"] = "Eliminar usuario"; }
+<h1>Eliminar usuario</h1>
+<p>¿Desea eliminar este usuario? Esta operación no se puede deshacer.</p>
+<div asp-validation-summary="All" class="text-danger" role="alert"></div>
+<partial name="_Datos" model="Model" />
+<form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger">Eliminar</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
+</form>

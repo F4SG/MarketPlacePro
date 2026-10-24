@@ -1,0 +1,6 @@
+@model MarketPlacePro.Models.Usuario
+@{ ViewData["Title"] = "Detalles del usuario"; }
+<h1>Detalles del usuario</h1>
+<partial name="_Datos" model="Model" />
+<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Editar</a>
+<a asp-action="Index" class="btn btn-secondary">Volver</a>
