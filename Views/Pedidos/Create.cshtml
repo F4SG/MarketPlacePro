@@ -1,0 +1,62 @@
+
+@model MarketPlacePro.Models.Pedido
+
+@{
+    ViewData["Title"] = "Crear pedido";
+}
+
+<h1>Crear pedido</h1>
+
+<h4>Pedido</h4>
+<hr />
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Create" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group mb-3">
+                <label asp-for="NumeroPedido" class="control-label">Número de pedido</label>
+                <input asp-for="NumeroPedido" class="form-control" />
+                <span asp-validation-for="NumeroPedido" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Subtotal" class="control-label">Subtotal</label>
+                <input asp-for="Subtotal" class="form-control" type="number" min="0" step="0.01" />
+                <span asp-validation-for="Subtotal" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Total" class="control-label">Total</label>
+                <input asp-for="Total" class="form-control" type="number" min="0" step="0.01" />
+                <span asp-validation-for="Total" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Estado" class="control-label">Estado</label>
+                <select asp-for="Estado" class="form-select" asp-items="ViewBag.Estados">
+                    <option value="">Seleccione un estado</option>
+                </select>
+                <span asp-validation-for="Estado" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="UsuarioId" class="control-label">Comprador</label>
+                <select asp-for="UsuarioId" class="form-select" asp-items="ViewBag.UsuarioId">
+                    <option value="">Seleccione un comprador</option>
+                </select>
+                <span asp-validation-for="UsuarioId" class="text-danger"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Crear pedido</button>
+            <a asp-action="Index" class="btn btn-secondary">Volver</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

@@ -1,0 +1,40 @@
+@model MarketPlacePro.Models.Pedido
+
+@{
+    ViewData["Title"] = "Eliminar pedido";
+}
+
+<h1>Eliminar pedido</h1>
+
+<h3>¿Estás seguro de que deseas eliminar este pedido?</h3>
+
+<div>
+    <hr />
+
+    <dl class="row">
+        <dt class="col-sm-3">Número de pedido</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.NumeroPedido)</dd>
+
+        <dt class="col-sm-3">Subtotal</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Subtotal)</dd>
+
+        <dt class="col-sm-3">Total</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Total)</dd>
+
+        <dt class="col-sm-3">Estado</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Estado)</dd>
+
+        <dt class="col-sm-3">Fecha del pedido</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.FechaPedido)</dd>
+
+        <dt class="col-sm-3">Comprador</dt>
+        <dd class="col-sm-9">@(Model.Comprador?.Nombre ?? "Sin comprador")</dd>
+    </dl>
+
+    <form asp-action="Delete" method="post">
+        <input type="hidden" asp-for="Id" />
+
+        <button type="submit" class="btn btn-danger">Eliminar pedido</button>
+        <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>

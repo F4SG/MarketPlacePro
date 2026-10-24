@@ -1,0 +1,37 @@
+@model MarketPlacePro.Models.Pedido
+
+@{
+    ViewData["Title"] = "Detalles del pedido";
+}
+
+<h1>Detalles del pedido</h1>
+
+<div>
+    <h4>Pedido</h4>
+    <hr />
+
+    <dl class="row">
+        <dt class="col-sm-3">Número de pedido</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.NumeroPedido)</dd>
+
+        <dt class="col-sm-3">Subtotal</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Subtotal)</dd>
+
+        <dt class="col-sm-3">Total</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Total)</dd>
+
+        <dt class="col-sm-3">Estado</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.Estado)</dd>
+
+        <dt class="col-sm-3">Fecha del pedido</dt>
+        <dd class="col-sm-9">@Html.DisplayFor(model => model.FechaPedido)</dd>
+
+        <dt class="col-sm-3">Comprador</dt>
+        <dd class="col-sm-9">@(Model.Comprador?.Nombre ?? "Sin comprador")</dd>
+    </dl>
+</div>
+
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Editar</a>
+    <a asp-action="Index" class="btn btn-secondary">Volver a la lista</a>
+</div>
