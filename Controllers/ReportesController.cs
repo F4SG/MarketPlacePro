@@ -1,6 +1,7 @@
 using MarketPlacePro.Data;
 using MarketPlacePro.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace MarketPlacePro.Controllers;
@@ -50,6 +51,38 @@ public class ReportesController : Controller
             ProductoMasVendido = filas.OrderByDescending(f => f.CantidadVendida).FirstOrDefault()?.Producto
         };
 
+        return View(modelo);
+    }
+
+    public async Task<IActionResult> ProductosBajoStock(int umbral = 5, long? categoriaId = null)
+    {
+        var modelo = new ReporteStockViewModel { Umbral = umbral, CategoriaId = categoriaId };
+        var categorias = await _context.Categorias.AsNoTracking().OrderBy(c => c.Nombre).ToListAsync();
+        ViewData["Categorias"] = new SelectList(categorias, "Id", "Nombre", categoriaId);
+
+        if (umbral < 0)
+            ModelState.AddModelError(nameof(ReporteStockViewModel.Umbral), "El umbral debe ser cero o mayor.");
+        if (categoriaId.HasValue && !categorias.Any(c => c.Id == categoriaId.Value))
+            ModelState.AddModelError(nameof(ReporteStockViewModel.CategoriaId), "Seleccione una categoría existente.");
+        if (!ModelState.IsValid) return View(modelo);
+
+        var query = _context.Productos.AsNoTracking()
+            .Where(p => p.Estado == "activo" && p.Stock <= umbral);
+        if (categoriaId.HasValue)
+            query = query.Where(p => p.CategoriaId == categoriaId.Value);
+
+        modelo.Filas = await query.OrderBy(p => p.Stock).ThenBy(p => p.Nombre).ThenBy(p => p.Id)
+            .Select(p => new ProductoBajoStockDto
+            {
+                Producto = p.Nombre,
+                Categoria = p.Categoria.Nombre,
+                Vendedor = p.Vendedor.NombreTienda == null || p.Vendedor.NombreTienda == ""
+                    ? p.Vendedor.Nombre : p.Vendedor.NombreTienda,
+                Stock = p.Stock,
+                Precio = p.Precio
+            }).ToListAsync();
+        modelo.CantidadBajoUmbral = modelo.Filas.Count;
+        modelo.ValorEnRiesgo = modelo.Filas.Sum(f => f.Precio * f.Stock);
         return View(modelo);
     }
 }

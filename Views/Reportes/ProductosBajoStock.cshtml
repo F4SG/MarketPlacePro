@@ -1,0 +1,49 @@
+@model MarketPlacePro.Models.ReporteStockViewModel
+@{ ViewData["Title"] = "Productos con bajo stock"; }
+<h1>Productos con bajo stock</h1>
+<p>Productos activos con stock menor o igual al umbral seleccionado.</p>
+<form asp-action="ProductosBajoStock" method="get" class="row g-3 mb-4">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <div class="col-sm-3">
+        <label asp-for="Umbral" class="form-label">Umbral de stock</label>
+        <input asp-for="Umbral" type="number" min="0" step="1" required class="form-control" />
+        <span asp-validation-for="Umbral" class="text-danger"></span>
+    </div>
+    <div class="col-sm-4">
+        <label asp-for="CategoriaId" class="form-label">Categoría</label>
+        <select asp-for="CategoriaId" asp-items="ViewBag.Categorias" class="form-select">
+            <option value="">Todas</option>
+        </select>
+        <span asp-validation-for="CategoriaId" class="text-danger"></span>
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <a asp-action="ProductosBajoStock" class="btn btn-outline-secondary">Limpiar filtros</a>
+    </div>
+</form>
+@if (ViewData.ModelState.IsValid)
+{
+    @if (Model.Filas.Count == 0)
+    {
+        <p class="alert alert-info">No hay productos que coincidan con los filtros.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead><tr><th scope="col">Producto</th><th scope="col">Categoría</th><th scope="col">Vendedor</th><th scope="col" class="text-end">Stock</th><th scope="col" class="text-end">Precio</th></tr></thead>
+                <tbody>
+                @foreach (var fila in Model.Filas)
+                {
+                    <tr><td>@fila.Producto</td><td>@fila.Categoria</td><td>@fila.Vendedor</td><td class="text-end">@fila.Stock</td><td class="text-end">Bs @fila.Precio.ToString("F2")</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    <div class="alert alert-warning">
+        Productos con stock menor o igual al umbral: <strong>@Model.CantidadBajoUmbral</strong><br />
+        Valor del inventario con bajo stock: <strong>Bs @Model.ValorEnRiesgo.ToString("F2")</strong>
+        <div class="small">Suma del precio por las unidades disponibles de los productos filtrados.</div>
+    </div>
+}
