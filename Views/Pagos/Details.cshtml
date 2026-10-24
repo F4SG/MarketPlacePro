@@ -1,0 +1,30 @@
+@model MarketPlacePro.Models.Pago
+
+@{
+    ViewData["Title"] = "Detalles del pago";
+}
+
+<h1>Detalles del pago</h1>
+
+<dl class="row">
+    <dt class="col-sm-3">Método de pago</dt>
+    <dd class="col-sm-9">@Model.Metodo</dd>
+
+    <dt class="col-sm-3">Monto</dt>
+    <dd class="col-sm-9">@Model.Monto.ToString("N2")</dd>
+
+    <dt class="col-sm-3">Estado</dt>
+    <dd class="col-sm-9">@Model.Estado</dd>
+
+    <dt class="col-sm-3">Referencia</dt>
+    <dd class="col-sm-9">@Model.Referencia</dd>
+
+    <dt class="col-sm-3">Fecha de pago</dt>
+    <dd class="col-sm-9">@Model.FechaPago.ToString("dd/MM/yyyy HH:mm")</dd>
+
+    <dt class="col-sm-3">Número de pedido</dt>
+    <dd class="col-sm-9">@Model.Pedido.NumeroPedido</dd>
+</dl>
+
+<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Editar</a>
+<a asp-action="Index" class="btn btn-secondary">Volver</a>
