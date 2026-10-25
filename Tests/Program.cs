@@ -141,21 +141,41 @@ await Check("Cambiar producto toma el precio del nuevo producto", async () =>
 });
 await Check("Mover un detalle recalcula los dos pedidos", async () =>
 {
-    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
-    var id = await db.DetallesPedido.Select(d => d.Id).SingleAsync();
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db); await AddDetail(db, producto: 2, cantidad: 1);
+    var id = await db.DetallesPedido.Where(d => d.ProductoId == 1).Select(d => d.Id).SingleAsync();
     Assert(await new DetallePedidosController(db).Edit(id,
         new DetallePedido { Id = id, PedidoId = 2, ProductoId = 1, Cantidad = 2 }) is RedirectToActionResult, "Falló el movimiento.");
     db.ChangeTracker.Clear();
-    Assert((await db.Pedidos.FindAsync(1L))!.Total == 0 && (await db.Pedidos.FindAsync(2L))!.Total == 20,
+    Assert((await db.Pedidos.FindAsync(1L))!.Total == 20 && (await db.Pedidos.FindAsync(2L))!.Total == 20,
         "No se actualizaron ambos pedidos.");
 });
-await Check("Eliminar el último detalle deja ambos importes en cero", async () =>
+await Check("No permite eliminar el último detalle del pedido", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
     var id = await db.DetallesPedido.Select(d => d.Id).SingleAsync();
-    Assert(await new DetallePedidosController(db).DeleteConfirmed(id) is RedirectToActionResult, "Falló la eliminación.");
-    db.ChangeTracker.Clear(); var p = await db.Pedidos.FindAsync(1L);
-    Assert(p!.Subtotal == 0 && p.Total == 0 && await db.DetallesPedido.CountAsync() == 0, "Totales incorrectos.");
+    var c = new DetallePedidosController(db);
+    Assert(await c.DeleteConfirmed(id) is ViewResult && !c.ModelState.IsValid, "Se permitió vaciar el pedido.");
+    db.ChangeTracker.Clear();
+    Assert((await db.Pedidos.FindAsync(1L))!.Total == 20 && await db.DetallesPedido.CountAsync() == 1, "Se alteró el pedido.");
+});
+await Check("No permite trasladar el último detalle a otro pedido", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    var id = await db.DetallesPedido.Select(d => d.Id).SingleAsync();
+    var c = new DetallePedidosController(db);
+    Assert(await c.Edit(id, new DetallePedido { Id = id, PedidoId = 2, ProductoId = 1, Cantidad = 2 })
+        is ViewResult && !c.ModelState.IsValid, "Se permitió vaciar el pedido de origen.");
+    db.ChangeTracker.Clear();
+    Assert((await db.DetallesPedido.SingleAsync()).PedidoId == 1 && (await db.Pedidos.FindAsync(1L))!.Total == 20,
+        "Hubo persistencia parcial al trasladar.");
+});
+await Check("Eliminar un detalle conserva los demás y recalcula", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db); await AddDetail(db, producto: 2, cantidad: 1);
+    var id = await db.DetallesPedido.Where(d => d.ProductoId == 1).Select(d => d.Id).SingleAsync();
+    Assert(await new DetallePedidosController(db).DeleteConfirmed(id) is RedirectToActionResult, "Se bloqueó una eliminación válida.");
+    db.ChangeTracker.Clear();
+    Assert((await db.Pedidos.FindAsync(1L))!.Total == 20 && await db.DetallesPedido.CountAsync() == 1, "Totales incorrectos.");
 });
 await Check("Rechaza total que excede decimal(10,2) sin guardar el nuevo detalle", async () =>
 {
@@ -182,15 +202,43 @@ await Check("La transacción revierte si falla la FK del detalle", async () =>
     Assert((await db.Pedidos.FindAsync(1L))!.Total == 20 && await db.DetallesPedido.CountAsync() == 1,
         "La transacción dejó cambios parciales.");
 });
-await Check("Crear pedido ignora importes enviados por el formulario", async () =>
+await Check("Crear pedido guarda el primer detalle y calcula sus importes", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db;
     var c = new PedidosController(db);
-    var m = new Pedido { NumeroPedido = "NUEVO", UsuarioId = 1, Subtotal = 999, Total = 999 };
+    var m = new NuevoPedidoViewModel { NumeroPedido = "NUEVO", UsuarioId = 1, ProductoId = 1, Cantidad = 3 };
     Validate(c, m);
-    Assert(await c.Create(m) is RedirectToActionResult, "No se creó el pedido.");
-    db.ChangeTracker.Clear(); var p = await db.Pedidos.SingleAsync(x => x.NumeroPedido == "NUEVO");
-    Assert(p.Total == 0 && p.Subtotal == 0, "Se aceptaron importes manuales.");
+    Assert(await c.Create(m) is RedirectToActionResult, "No se creó el pedido con su detalle.");
+    db.ChangeTracker.Clear(); var p = await db.Pedidos.Include(x => x.Detalles).SingleAsync(x => x.NumeroPedido == "NUEVO");
+    Assert(p.Total == 30 && p.Subtotal == 30 && p.Detalles.Count == 1, "Pedido o detalle incompletos.");
+});
+await Check("No crea pedidos sin producto ni con cantidad cero", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    foreach (var m in new[] {
+        new NuevoPedidoViewModel { NumeroPedido = "SIN-PRODUCTO", UsuarioId = 1, ProductoId = 0 },
+        new NuevoPedidoViewModel { NumeroPedido = "SIN-CANTIDAD", UsuarioId = 1, ProductoId = 1, Cantidad = 0 } })
+    {
+        var c = new PedidosController(db); Validate(c, m);
+        Assert(await c.Create(m) is ViewResult && !c.ModelState.IsValid, "Se aceptó un pedido vacío.");
+    }
+    Assert(await db.Pedidos.CountAsync() == 2, "Se persistió un pedido incompleto.");
+});
+await Check("Un pedido vacío anterior no puede marcarse completado", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    var c = new PedidosController(db);
+    Assert(await c.Edit(1, new Pedido { Id = 1, NumeroPedido = "PED-1", UsuarioId = 1, Estado = "completada" })
+        is ViewResult && !c.ModelState.IsValid, "Se completó un pedido vacío.");
+    db.ChangeTracker.Clear(); Assert((await db.Pedidos.FindAsync(1L))!.Estado == "pendiente", "Se cambió el estado.");
+});
+await Check("Un pedido válido sí puede completarse", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    var c = new PedidosController(db);
+    Assert(await c.Edit(1, new Pedido { Id = 1, NumeroPedido = "PED-1", UsuarioId = 1, Estado = "completada" })
+        is RedirectToActionResult, "No pudo completarse el pedido válido.");
+    db.ChangeTracker.Clear(); Assert((await db.Pedidos.FindAsync(1L))!.Estado == "completada", "No se guardó el estado.");
 });
 await Check("Editar pedido no permite alterar manualmente los importes", async () =>
 {

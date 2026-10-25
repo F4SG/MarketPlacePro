@@ -1,5 +1,5 @@
 
-@model MarketPlacePro.Models.Pedido
+@model MarketPlacePro.Models.NuevoPedidoViewModel
 
 @{
     ViewData["Title"] = "Crear pedido";
@@ -8,7 +8,7 @@
 <h1>Crear pedido</h1>
 
 <h4>Pedido</h4>
-<p>El subtotal y el total se calculan automáticamente al guardar los detalles del pedido.</p>
+<p>Todo pedido requiere al menos un producto. El pedido y su primer detalle se guardan juntos; los importes se calculan automáticamente.</p>
 <hr />
 
 <div class="row">
@@ -23,15 +23,16 @@
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="Subtotal" class="control-label">Subtotal</label>
-                <input asp-for="Subtotal" class="form-control" readonly />
-                <span asp-validation-for="Subtotal" class="text-danger"></span>
+                <label asp-for="ProductoId" class="control-label">Primer producto</label>
+                <select asp-for="ProductoId" class="form-select" asp-items="ViewBag.Productos">
+                    <option value="">Seleccione un producto activo</option>
+                </select>
+                <span asp-validation-for="ProductoId" class="text-danger"></span>
             </div>
-
             <div class="form-group mb-3">
-                <label asp-for="Total" class="control-label">Total</label>
-                <input asp-for="Total" class="form-control" readonly />
-                <span asp-validation-for="Total" class="text-danger"></span>
+                <label asp-for="Cantidad" class="control-label">Cantidad</label>
+                <input asp-for="Cantidad" class="form-control" type="number" min="1" step="1" />
+                <span asp-validation-for="Cantidad" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">

@@ -59,59 +59,59 @@ namespace MarketPlacePro.Controllers
         {
             CargarCompradores();
             CargarEstados();
-
-            return View();
+            CargarProductos();
+            return View(new NuevoPedidoViewModel());
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            [Bind("NumeroPedido,Estado,UsuarioId")] Pedido pedido)
+            [Bind("NumeroPedido,Estado,UsuarioId,ProductoId,Cantidad")] NuevoPedidoViewModel formulario)
         {
-            pedido.NumeroPedido = pedido.NumeroPedido?.Trim() ?? string.Empty;
+            formulario.NumeroPedido = formulario.NumeroPedido?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(formulario.NumeroPedido))
+                ModelState.AddModelError(nameof(formulario.NumeroPedido), "El número de pedido es obligatorio.");
+            else if (await _context.Pedidos.AnyAsync(p => p.NumeroPedido == formulario.NumeroPedido))
+                ModelState.AddModelError(nameof(formulario.NumeroPedido), "Ya existe un pedido con ese número.");
+            if (!await _context.Usuarios.AnyAsync(u => u.Id == formulario.UsuarioId))
+                ModelState.AddModelError(nameof(formulario.UsuarioId), "El comprador seleccionado no existe.");
+            if (!_estados.Contains(formulario.Estado))
+                ModelState.AddModelError(nameof(formulario.Estado), "El estado seleccionado no es válido.");
+            if (formulario.Cantidad <= 0)
+                ModelState.AddModelError(nameof(formulario.Cantidad), "La cantidad debe ser mayor que cero.");
+            var producto = await _context.Productos.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == formulario.ProductoId && p.Estado == "activo");
+            if (producto == null)
+                ModelState.AddModelError(nameof(formulario.ProductoId), "Seleccione un producto activo para el primer detalle.");
 
-            if (string.IsNullOrWhiteSpace(pedido.NumeroPedido))
+            if (ModelState.IsValid && producto != null)
             {
-                ModelState.AddModelError(
-                    nameof(pedido.NumeroPedido),
-                    "El número de pedido es obligatorio.");
+                var pedido = new Pedido
+                {
+                    NumeroPedido = formulario.NumeroPedido,
+                    Estado = formulario.Estado,
+                    UsuarioId = formulario.UsuarioId,
+                    FechaPedido = DateTime.UtcNow,
+                    Detalles = new List<DetallePedido>
+                    {
+                        new DetallePedido
+                        {
+                            ProductoId = producto.Id,
+                            NombreProducto = producto.Nombre,
+                            PrecioUnitario = producto.Precio,
+                            Cantidad = formulario.Cantidad,
+                            Subtotal = producto.Precio * formulario.Cantidad
+                        }
+                    }
+                };
+                if (await Persistencia.GuardarAsync(this, _context,
+                    () => TotalesPedido.CrearAsync(_context, pedido)))
+                    return RedirectToAction(nameof(Index));
             }
-            else if (await _context.Pedidos.AnyAsync(
-                p => p.NumeroPedido == pedido.NumeroPedido))
-            {
-                ModelState.AddModelError(
-                    nameof(pedido.NumeroPedido),
-                    "Ya existe un pedido con ese número.");
-            }
-
-            if (!await _context.Usuarios.AnyAsync(u => u.Id == pedido.UsuarioId))
-            {
-                ModelState.AddModelError(
-                    nameof(pedido.UsuarioId),
-                    "El comprador seleccionado no existe.");
-            }
-
-            if (!_estados.Contains(pedido.Estado))
-            {
-                ModelState.AddModelError(
-                    nameof(pedido.Estado),
-                    "El estado seleccionado no es válido.");
-            }
-
-            if (ModelState.IsValid)
-            {
-                pedido.FechaPedido = DateTime.UtcNow;
-                pedido.Subtotal = 0;
-                pedido.Total = 0;
-
-                _context.Pedidos.Add(pedido);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
-            }
-
-            CargarCompradores(pedido.UsuarioId);
-            CargarEstados(pedido.Estado);
-
-            return View(pedido);
+            CargarCompradores(formulario.UsuarioId);
+            CargarEstados(formulario.Estado);
+            CargarProductos(formulario.ProductoId);
+            return View(formulario);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -247,6 +247,14 @@ namespace MarketPlacePro.Controllers
                 "Id",
                 "Nombre",
                 usuarioSeleccionado);
+        }
+
+        private void CargarProductos(long? productoSeleccionado = null)
+        {
+            var productos = _context.Productos.AsNoTracking().Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombre).ThenBy(p => p.Id)
+                .Select(p => new { p.Id, Texto = p.Nombre + " (#" + p.Id + ")" }).ToList();
+            ViewData["Productos"] = new SelectList(productos, "Id", "Texto", productoSeleccionado);
         }
 
         private void CargarEstados(string? estadoSeleccionado = null)
