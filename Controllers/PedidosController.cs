@@ -66,7 +66,7 @@ namespace MarketPlacePro.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            [Bind("NumeroPedido,Subtotal,Total,Estado,UsuarioId")] Pedido pedido)
+            [Bind("NumeroPedido,Estado,UsuarioId")] Pedido pedido)
         {
             pedido.NumeroPedido = pedido.NumeroPedido?.Trim() ?? string.Empty;
 
@@ -101,11 +101,11 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 pedido.FechaPedido = DateTime.UtcNow;
+                pedido.Subtotal = 0;
+                pedido.Total = 0;
 
                 _context.Pedidos.Add(pedido);
-                await _context.SaveChangesAsync();
-
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             CargarCompradores(pedido.UsuarioId);
@@ -138,7 +138,7 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(
             long id,
-            [Bind("Id,NumeroPedido,Subtotal,Total,Estado,UsuarioId")] Pedido pedido)
+            [Bind("Id,NumeroPedido,Estado,UsuarioId")] Pedido pedido)
         {
             if (id != pedido.Id)
             {
@@ -185,16 +185,16 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 pedidoExistente.NumeroPedido = pedido.NumeroPedido;
-                pedidoExistente.Subtotal = pedido.Subtotal;
-                pedidoExistente.Total = pedido.Total;
                 pedidoExistente.Estado = pedido.Estado;
                 pedidoExistente.UsuarioId = pedido.UsuarioId;
 
-                await _context.SaveChangesAsync();
-
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context,
+                    () => TotalesPedido.GuardarAsync(_context, id)))
+                    return RedirectToAction(nameof(Index));
             }
 
+            pedido.Subtotal = pedidoExistente.Subtotal;
+            pedido.Total = pedidoExistente.Total;
             CargarCompradores(pedido.UsuarioId);
             CargarEstados(pedido.Estado);
 

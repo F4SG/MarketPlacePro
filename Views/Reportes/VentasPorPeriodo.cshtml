@@ -3,22 +3,25 @@
     ViewData["Title"] = "Ventas por período";
 }
 <h1>Ventas por período</h1>
+<p>Fechas en horario de Bolivia (UTC-4). El período incluye ambos días completos.</p>
+<div asp-validation-summary="All" class="text-danger" role="alert"></div>
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-auto">
-        <label>Desde</label>
-        <input type="date" name="desde" value="@Model.Desde.ToString("yyyy-MM-dd")" class="form-control" />
+        <label asp-for="Desde">Desde</label>
+        <input asp-for="Desde" type="date" class="form-control" />
     </div>
     <div class="col-auto">
-        <label>Hasta</label>
-        <input type="date" name="hasta" value="@Model.Hasta.ToString("yyyy-MM-dd")" class="form-control" />
+        <label asp-for="Hasta">Hasta</label>
+        <input asp-for="Hasta" type="date" class="form-control" />
     </div>
     <div class="col-auto">
-        <label>Estado</label>
-        <select name="estado" class="form-control">
+        <label asp-for="Estado">Estado</label>
+        <select asp-for="Estado" class="form-control">
             <option value="completada" selected="@(Model.Estado == "completada" ? "selected" : null)">Completada</option>
             <option value="pendiente" selected="@(Model.Estado == "pendiente" ? "selected" : null)">Pendiente</option>
             <option value="en_proceso" selected="@(Model.Estado == "en_proceso" ? "selected" : null)">En proceso</option>
+            <option value="cancelada" selected="@(Model.Estado == "cancelada" ? "selected" : null)">Cancelada</option>
         </select>
     </div>
     <div class="col-auto align-self-end">
@@ -26,14 +29,21 @@
     </div>
 </form>
 
+@if (ViewData.ModelState.IsValid)
+{
+@if (Model.Filas.Count == 0)
+{
+    <p class="alert alert-info">No hay ventas que coincidan con los filtros.</p>
+}
 <table class="table table-striped">
     <thead>
-        <tr><th>Producto</th><th>Categoría</th><th>Cantidad vendida</th><th>Monto total</th></tr>
+        <tr><th>Código de producto</th><th>Producto</th><th>Categoría</th><th>Cantidad vendida</th><th>Monto total</th></tr>
     </thead>
     <tbody>
     @foreach (var fila in Model.Filas)
     {
         <tr>
+            <td>@fila.ProductoId</td>
             <td>@fila.Producto</td>
             <td>@fila.Categoria</td>
             <td>@fila.CantidadVendida</td>
@@ -48,3 +58,5 @@
     Monto total: <strong>Bs @Model.MontoTotal.ToString("F2")</strong> —
     Producto más vendido: <strong>@(Model.ProductoMasVendido ?? "—")</strong>
 </div>
+
+}

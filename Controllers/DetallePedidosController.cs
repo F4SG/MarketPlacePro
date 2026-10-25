@@ -80,8 +80,9 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 _context.DetallesPedido.Add(detallePedido);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context,
+                    () => TotalesPedido.GuardarAsync(_context, detallePedido.PedidoId)))
+                    return RedirectToAction(nameof(Index));
             }
 
             await CargarListas(detallePedido.PedidoId, detallePedido.ProductoId);
@@ -131,15 +132,21 @@ namespace MarketPlacePro.Controllers
 
             if (ModelState.IsValid && producto != null)
             {
+                var pedidoAnteriorId = detalleExistente.PedidoId;
+                var cambiaProducto = detalleExistente.ProductoId != producto.Id;
                 detalleExistente.PedidoId = detallePedido.PedidoId;
                 detalleExistente.ProductoId = producto.Id;
-                detalleExistente.NombreProducto = producto.Nombre;
-                detalleExistente.PrecioUnitario = producto.Precio;
+                if (cambiaProducto)
+                {
+                    detalleExistente.NombreProducto = producto.Nombre;
+                    detalleExistente.PrecioUnitario = producto.Precio;
+                }
                 detalleExistente.Cantidad = detallePedido.Cantidad;
-                detalleExistente.Subtotal = producto.Precio * detallePedido.Cantidad;
+                detalleExistente.Subtotal = detalleExistente.PrecioUnitario * detallePedido.Cantidad;
 
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context,
+                    () => TotalesPedido.GuardarAsync(_context, pedidoAnteriorId, detallePedido.PedidoId)))
+                    return RedirectToAction(nameof(Index));
             }
 
             await CargarListas(detallePedido.PedidoId, detallePedido.ProductoId);
@@ -167,12 +174,15 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var detalle = await _context.DetallesPedido.FindAsync(id);
+            var detalle = await _context.DetallesPedido.Include(d => d.Pedido).Include(d => d.Producto)
+                .FirstOrDefaultAsync(d => d.Id == id);
 
             if (detalle != null)
             {
                 _context.DetallesPedido.Remove(detalle);
-                await _context.SaveChangesAsync();
+                if (!await Persistencia.GuardarAsync(this, _context,
+                    () => TotalesPedido.GuardarAsync(_context, detalle.PedidoId)))
+                    return View("Delete", detalle);
             }
 
             return RedirectToAction(nameof(Index));

@@ -15,42 +15,42 @@ public class ReportesController : Controller
         _context = context;
     }
 
-    // Reporte 1 - Franco
     public async Task<IActionResult> VentasPorPeriodo(DateTime? desde, DateTime? hasta, string estado = "completada")
     {
-        var hastaFecha = hasta ?? DateTime.Today;
-        var desdeFecha = desde ?? hastaFecha.AddDays(-30);
+        var hastaFecha = DateTime.SpecifyKind((hasta ?? DateTime.UtcNow.AddHours(-4)).Date, DateTimeKind.Unspecified);
+        var desdeFecha = desde.HasValue ? DateTime.SpecifyKind(desde.Value.Date, DateTimeKind.Unspecified)
+            : (hastaFecha >= DateTime.MinValue.AddDays(30) ? hastaFecha.AddDays(-30) : hastaFecha);
+        var modelo = new ReporteVentasViewModel { Desde = desdeFecha, Hasta = hastaFecha, Estado = estado };
+        if (desdeFecha > hastaFecha)
+            ModelState.AddModelError(nameof(modelo.Desde), "La fecha inicial no puede ser posterior a la fecha final.");
+        if (hastaFecha >= DateTime.MaxValue.Date)
+            ModelState.AddModelError(nameof(modelo.Hasta), "Seleccione una fecha final anterior al 31/12/9999.");
+        if (estado is not ("completada" or "pendiente" or "en_proceso" or "cancelada"))
+            ModelState.AddModelError(nameof(modelo.Estado), "Seleccione un estado válido.");
+        if (!ModelState.IsValid) return View(modelo);
 
-        var query = _context.DetallesPedido.AsNoTracking()
-            .Include(d => d.Producto).ThenInclude(p => p.Categoria)
-            .Where(d => d.Pedido.FechaPedido >= desdeFecha
-                     && d.Pedido.FechaPedido <= hastaFecha
-                     && d.Pedido.Estado == estado);
-
-        var filas = await query
-            .GroupBy(d => new { d.Producto.Nombre, Categoria = d.Producto.Categoria.Nombre })
+        // Los pedidos se registran en UTC; los filtros representan días completos de Bolivia.
+        var desdeUtc = new DateTimeOffset(desdeFecha, TimeSpan.FromHours(-4)).UtcDateTime;
+        var hastaUtcExclusivo = new DateTimeOffset(hastaFecha.AddDays(1), TimeSpan.FromHours(-4)).UtcDateTime;
+        var pedidos = _context.Pedidos.AsNoTracking().Where(p =>
+            p.FechaPedido >= desdeUtc && p.FechaPedido < hastaUtcExclusivo && p.Estado == estado);
+        modelo.Filas = await _context.DetallesPedido.AsNoTracking()
+            .Where(d => pedidos.Select(p => p.Id).Contains(d.PedidoId))
+            .GroupBy(d => new { d.ProductoId, d.Producto.Nombre, d.Producto.CategoriaId,
+                Categoria = d.Producto.Categoria.Nombre })
             .Select(g => new VentaPorProductoDto
             {
+                ProductoId = g.Key.ProductoId,
                 Producto = g.Key.Nombre,
                 Categoria = g.Key.Categoria,
-                CantidadVendida = g.Sum(x => x.Cantidad),
+                CantidadVendida = g.Sum(x => (long)x.Cantidad),
                 MontoTotal = g.Sum(x => x.Subtotal)
             })
-            .OrderByDescending(f => f.MontoTotal)
-            .ToListAsync();
-
-        var modelo = new ReporteVentasViewModel
-        {
-            Desde = desdeFecha,
-            Hasta = hastaFecha,
-            Estado = estado,
-            Filas = filas,
-            TotalPedidos = await _context.Pedidos.CountAsync(p =>
-                p.FechaPedido >= desdeFecha && p.FechaPedido <= hastaFecha && p.Estado == estado),
-            MontoTotal = filas.Sum(f => f.MontoTotal),
-            ProductoMasVendido = filas.OrderByDescending(f => f.CantidadVendida).FirstOrDefault()?.Producto
-        };
-
+            .OrderByDescending(f => f.MontoTotal).ThenBy(f => f.ProductoId).ToListAsync();
+        modelo.TotalPedidos = await pedidos.CountAsync();
+        modelo.MontoTotal = modelo.Filas.Sum(f => f.MontoTotal);
+        modelo.ProductoMasVendido = modelo.Filas.OrderByDescending(f => f.CantidadVendida)
+            .ThenBy(f => f.ProductoId).FirstOrDefault()?.Producto;
         return View(modelo);
     }
 

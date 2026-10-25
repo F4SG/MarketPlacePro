@@ -71,8 +71,7 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 _context.Add(producto);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             CargarListas(producto.CategoriaId, producto.UsuarioId);
@@ -110,17 +109,8 @@ namespace MarketPlacePro.Controllers
 
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Update(producto);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!await _context.Productos.AnyAsync(p => p.Id == producto.Id)) return NotFound();
-                    throw;
-                }
-                return RedirectToAction(nameof(Index));
+                _context.Update(producto);
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             CargarListas(producto.CategoriaId, producto.UsuarioId);
@@ -152,14 +142,16 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var producto = await _context.Productos.FindAsync(id);
-            if (producto != null)
+            var producto = await _context.Productos.Include(p => p.Categoria).Include(p => p.Vendedor).FirstOrDefaultAsync(x => x.Id == id);
+            if (producto == null) return NotFound();
+            if (await _context.DetallesCarrito.AnyAsync(d => d.ProductoId == id) || await _context.DetallesPedido.AnyAsync(d => d.ProductoId == id))
             {
-                _context.Productos.Remove(producto);
+                ModelState.AddModelError(string.Empty, "No se puede eliminar el producto porque está asociado a carritos o pedidos.");
+                return View("Delete", producto);
             }
-
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            _context.Productos.Remove(producto);
+            if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+            return View("Delete", producto);
         }
 
         private void CargarListas(long? categoriaSeleccionada = null, long? vendedorSeleccionado = null)
@@ -173,9 +165,5 @@ namespace MarketPlacePro.Controllers
                 "Id", "Nombre", vendedorSeleccionado);
         }
 
-        private bool ProductoExists(long id)
-        {
-            return _context.Productos.Any(e => e.Id == id);
-        }
     }
 }

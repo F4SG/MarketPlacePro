@@ -59,8 +59,7 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 _context.Add(categoria);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
             return View(categoria);
         }
@@ -95,23 +94,8 @@ namespace MarketPlacePro.Controllers
 
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Update(categoria);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!CategoriaExists(categoria.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
+                _context.Update(categoria);
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
             return View(categoria);
         }
@@ -139,19 +123,17 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var categoria = await _context.Categorias.FindAsync(id);
-            if (categoria != null)
+            var categoria = await _context.Categorias.FirstOrDefaultAsync(x => x.Id == id);
+            if (categoria == null) return NotFound();
+            if (await _context.Productos.AnyAsync(p => p.CategoriaId == id))
             {
-                _context.Categorias.Remove(categoria);
+                ModelState.AddModelError(string.Empty, "No se puede eliminar la categoría porque tiene productos asociados.");
+                return View("Delete", categoria);
             }
-
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            _context.Categorias.Remove(categoria);
+            if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+            return View("Delete", categoria);
         }
 
-        private bool CategoriaExists(long id)
-        {
-            return _context.Categorias.Any(e => e.Id == id);
-        }
     }
 }

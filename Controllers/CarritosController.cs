@@ -77,8 +77,7 @@ namespace MarketPlacePro.Controllers
             {
                 carrito.FechaCreacion = DateTime.UtcNow;
                 _context.Add(carrito);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             CargarUsuarios(carrito.UsuarioId);
@@ -118,25 +117,17 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(Carrito.UsuarioId), "El usuario seleccionado no existe.");
             }
 
+            if (await _context.Carritos.AnyAsync(c => c.UsuarioId == carrito.UsuarioId && c.Id != id))
+                ModelState.AddModelError(nameof(Carrito.UsuarioId), "Ese usuario ya tiene otro carrito.");
+            var existente = await _context.Carritos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
+            if (existente == null) return NotFound();
+            carrito.FechaCreacion = existente.FechaCreacion;
+            carrito.FechaActualizacion = DateTime.UtcNow;
+
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Update(carrito);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!CarritoExists(carrito.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
+                _context.Update(carrito);
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             CargarUsuarios(carrito.UsuarioId);
@@ -177,9 +168,5 @@ namespace MarketPlacePro.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private bool CarritoExists(long id)
-        {
-            return _context.Carritos.Any(e => e.Id == id);
-        }
     }
 }

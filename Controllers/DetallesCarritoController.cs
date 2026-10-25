@@ -91,8 +91,7 @@ namespace MarketPlacePro.Controllers
             {
                 detalleCarrito.FechaAgregado = DateTime.UtcNow;
                 _context.Add(detalleCarrito);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             await CargarListasAsync(detalleCarrito.CarritoId, detalleCarrito.ProductoId);
@@ -136,25 +135,17 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "El producto seleccionado no existe.");
             }
 
+            if (await _context.DetallesCarrito.AnyAsync(d => d.CarritoId == detalleCarrito.CarritoId &&
+                d.ProductoId == detalleCarrito.ProductoId && d.Id != id))
+                ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Ese producto ya está en el carrito.");
+            var existente = await _context.DetallesCarrito.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id);
+            if (existente == null) return NotFound();
+            detalleCarrito.FechaAgregado = existente.FechaAgregado;
+
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Update(detalleCarrito);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!DetalleCarritoExists(detalleCarrito.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
+                _context.Update(detalleCarrito);
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             await CargarListasAsync(detalleCarrito.CarritoId, detalleCarrito.ProductoId);
@@ -196,9 +187,5 @@ namespace MarketPlacePro.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private bool DetalleCarritoExists(long id)
-        {
-            return _context.DetallesCarrito.Any(e => e.Id == id);
-        }
     }
 }

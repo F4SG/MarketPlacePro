@@ -90,9 +90,7 @@ namespace MarketPlacePro.Controllers
                     pago.FechaPago = DateTime.Now;
 
                 _context.Pagos.Add(pago);
-                await _context.SaveChangesAsync();
-
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             await CargarPedidos(pago.PedidoId);
@@ -153,8 +151,7 @@ namespace MarketPlacePro.Controllers
                     : pago.FechaPago;
                 pagoExistente.PedidoId = pago.PedidoId;
 
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
             }
 
             await CargarPedidos(pago.PedidoId, pago.Id);
