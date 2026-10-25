@@ -1,13 +1,13 @@
 @model IEnumerable<MarketPlacePro.Models.Producto>
 
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "Productos";
 }
 
-<h1>Index</h1>
+<h1>Productos</h1>
 
 <p>
-    <a asp-action="Create">Create New</a>
+    <a asp-action="Create">Crear producto</a>
 </p>
 <table class="table">
     <thead>
@@ -16,7 +16,7 @@
                 @Html.DisplayNameFor(model => model.Nombre)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.Descripcion)
+                Descripción
             </th>
             <th>
                 @Html.DisplayNameFor(model => model.Precio)
@@ -31,13 +31,13 @@
                 @Html.DisplayNameFor(model => model.Estado)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.FechaPublicacion)
+                Fecha de publicación
             </th>
             <th>
                 @Html.DisplayNameFor(model => model.Vendedor)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.Categoria)
+                Categoría
             </th>
             <th></th>
         </tr>
@@ -66,12 +66,12 @@
             <td>
                 @Html.DisplayFor(modelItem => item.FechaPublicacion)
             </td>
-            <td>@item.Categoria.Nombre</td>
             <td>@(item.Vendedor.NombreTienda ?? item.Vendedor.Nombre)</td>
+            <td>@item.Categoria.Nombre</td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                <a asp-action="Edit" asp-route-id="@item.Id">Editar</a> |
+                <a asp-action="Details" asp-route-id="@item.Id">Detalles</a> |
+                <a asp-action="Delete" asp-route-id="@item.Id">Eliminar</a>
             </td>
         </tr>
 }

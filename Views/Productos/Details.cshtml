@@ -1,10 +1,10 @@
 @model MarketPlacePro.Models.Producto
 
 @{
-    ViewData["Title"] = "Details";
+    ViewData["Title"] = "Detalles de producto";
 }
 
-<h1>Details</h1>
+<h1>Detalles de producto</h1>
 
 <div>
     <h4>Producto</h4>
@@ -17,7 +17,7 @@
             @Html.DisplayFor(model => model.Nombre)
         </dd>
         <dt class = "col-sm-2">
-            @Html.DisplayNameFor(model => model.Descripcion)
+            Descripción
         </dt>
         <dd class = "col-sm-10">
             @Html.DisplayFor(model => model.Descripcion)
@@ -47,7 +47,7 @@
             @Html.DisplayFor(model => model.Estado)
         </dd>
         <dt class = "col-sm-2">
-            @Html.DisplayNameFor(model => model.FechaPublicacion)
+            Fecha de publicación
         </dt>
         <dd class = "col-sm-10">
             @Html.DisplayFor(model => model.FechaPublicacion)
@@ -59,7 +59,7 @@
             @(Model.Vendedor.NombreTienda ?? Model.Vendedor.Nombre)
         </dd>
         <dt class = "col-sm-2">
-            @Html.DisplayNameFor(model => model.Categoria)
+            Categoría
         </dt>
         <dd class = "col-sm-10">
             @Html.DisplayFor(model => model.Categoria.Nombre)
@@ -67,6 +67,6 @@
     </dl>
 </div>
 <div>
-    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
-    <a asp-action="Index">Back to List</a>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">Editar</a> |
+    <a asp-action="Index">Volver a la lista</a>
 </div>

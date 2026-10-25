@@ -1,5 +1,5 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,26 +11,40 @@
 </head>
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-lg navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">MarketPlacePro</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Abrir o cerrar el menú">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                <div id="navbarSupportedContent" class="navbar-collapse collapse d-lg-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Inicio</a></li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Usuarios" asp-action="Index">Usuarios</a></li>
+                        <li class="nav-item dropdown">
+                            <button class="nav-link dropdown-toggle text-dark" id="menu-catalogo" type="button" data-bs-toggle="dropdown" aria-expanded="false">Catálogo</button>
+                            <ul class="dropdown-menu" aria-labelledby="menu-catalogo">
+                                <li><a class="dropdown-item" asp-controller="Categorias" asp-action="Index">Categorías</a></li>
+                                <li><a class="dropdown-item" asp-controller="Productos" asp-action="Index">Productos</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                        <li class="nav-item dropdown">
+                            <button class="nav-link dropdown-toggle text-dark" id="menu-compras" type="button" data-bs-toggle="dropdown" aria-expanded="false">Compras</button>
+                            <ul class="dropdown-menu" aria-labelledby="menu-compras">
+                                <li><a class="dropdown-item" asp-controller="Carritos" asp-action="Index">Carritos</a></li>
+                                <li><a class="dropdown-item" asp-controller="DetallesCarrito" asp-action="Index">Detalles del carrito</a></li>
+                                <li><a class="dropdown-item" asp-controller="Pedidos" asp-action="Index">Pedidos</a></li>
+                                <li><a class="dropdown-item" asp-controller="DetallePedidos" asp-action="Index">Detalles de pedidos</a></li>
+                                <li><a class="dropdown-item" asp-controller="Pagos" asp-action="Index">Pagos</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Usuarios" asp-action="Index">Usuarios</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Reportes" asp-action="ProductosBajoStock">Bajo stock</a>
+                        <li class="nav-item dropdown">
+                            <button class="nav-link dropdown-toggle text-dark" id="menu-reportes" type="button" data-bs-toggle="dropdown" aria-expanded="false">Reportes</button>
+                            <ul class="dropdown-menu" aria-labelledby="menu-reportes">
+                                <li><a class="dropdown-item" asp-controller="Reportes" asp-action="VentasPorPeriodo">Ventas por período</a></li>
+                                <li><a class="dropdown-item" asp-controller="Reportes" asp-action="ProductosBajoStock">Productos con bajo stock</a></li>
+                            </ul>
                         </li>
                     </ul>
                 </div>
@@ -45,7 +59,7 @@
 
     <footer class="border-top footer text-muted">
         <div class="container">
-            &copy; 2026 - MarketPlacePro - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; 2026 - MarketPlacePro - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacidad</a>
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
