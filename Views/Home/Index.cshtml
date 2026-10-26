@@ -1,37 +1,62 @@
-@{
-    ViewData["Title"] = "Inicio";
-}
-
-<h1>MarketPlacePro</h1>
-<p class="lead">Gestiona usuarios, productos y compras, y consulta los reportes del marketplace.</p>
-
-<div class="row g-4 mt-2">
-    <section class="col-md-4" aria-labelledby="titulo-catalogo">
-        <h2 id="titulo-catalogo" class="h4">Usuarios y catálogo</h2>
-        <p>Consulta y administra los usuarios, las categorías y los productos.</p>
-        <ul>
-            <li><a asp-controller="Usuarios" asp-action="Index">Usuarios</a></li>
-            <li><a asp-controller="Categorias" asp-action="Index">Categorías</a></li>
-            <li><a asp-controller="Productos" asp-action="Index">Productos</a></li>
-        </ul>
-    </section>
-    <section class="col-md-4" aria-labelledby="titulo-compras">
-        <h2 id="titulo-compras" class="h4">Compras</h2>
-        <p>Administra los carritos, los pedidos, sus detalles y los pagos.</p>
-        <ul>
-            <li><a asp-controller="Carritos" asp-action="Index">Carritos</a></li>
-            <li><a asp-controller="DetallesCarrito" asp-action="Index">Detalles del carrito</a></li>
-            <li><a asp-controller="Pedidos" asp-action="Index">Pedidos</a></li>
-            <li><a asp-controller="DetallePedidos" asp-action="Index">Detalles de pedidos</a></li>
-            <li><a asp-controller="Pagos" asp-action="Index">Pagos</a></li>
-        </ul>
-    </section>
-    <section class="col-md-4" aria-labelledby="titulo-reportes">
-        <h2 id="titulo-reportes" class="h4">Reportes</h2>
-        <p>Consulta las ventas por período y los productos con pocas existencias.</p>
-        <ul>
-            <li><a asp-controller="Reportes" asp-action="VentasPorPeriodo">Ventas por período</a></li>
-            <li><a asp-controller="Reportes" asp-action="ProductosBajoStock">Productos con bajo stock</a></li>
-        </ul>
-    </section>
+@{ ViewData["Title"] = "Inicio"; }
+<section class="welcome mb-4">
+    <div class="eyebrow mb-2">Panel de gestión</div>
+    <h1>Tu marketplace, paso a paso.</h1>
+    <p class="mb-4">Administra el catálogo, organiza las compras y consulta tus ventas desde un solo lugar.</p>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-controller="Carritos" asp-action="Index" class="btn btn-primary">Gestionar carritos</a>
+        <a asp-controller="Pedidos" asp-action="Index" class="btn btn-outline-primary">Ver pedidos</a>
+    </div>
+</section>
+<h2 class="h5 mb-2">Prepara tu catálogo</h2>
+<p class="text-muted">Registra los usuarios y las categorías antes de publicar productos con un vendedor.</p>
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><section class="module-card">
+        <span class="eyebrow">Usuarios</span><h2>Compradores y vendedores</h2>
+        <p>Administra los datos de las personas y sus tiendas.</p>
+        <a asp-controller="Usuarios" asp-action="Index" class="btn btn-outline-primary align-self-start">Ver usuarios</a>
+    </section></div>
+    <div class="col-md-4"><section class="module-card">
+        <span class="eyebrow">Categorías</span><h2>Un catálogo ordenado</h2>
+        <p>Organiza los productos por categorías para encontrarlos fácilmente.</p>
+        <a asp-controller="Categorias" asp-action="Index" class="btn btn-outline-primary align-self-start">Ver categorías</a>
+    </section></div>
+    <div class="col-md-4"><section class="module-card">
+        <span class="eyebrow">Productos</span><h2>Precios y existencias</h2>
+        <p>Publica productos, asigna vendedores y revisa las unidades disponibles.</p>
+        <a asp-controller="Productos" asp-action="Index" class="btn btn-outline-primary align-self-start">Ver productos</a>
+    </section></div>
 </div>
+<h2 class="h5 mb-2">Gestiona una compra</h2>
+<p class="text-muted">El carrito organiza los productos. Por ahora, el pedido se registra por separado con su primer producto.</p>
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><section class="module-card">
+        <span class="step-number">1</span><h2>Organiza el carrito</h2>
+        <p>Crea el carrito del usuario y agrega productos desde Detalles del carrito.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-controller="Carritos" asp-action="Index" class="btn btn-primary">Carritos</a>
+            <a asp-controller="DetallesCarrito" asp-action="Index" class="btn btn-outline-secondary">Sus productos</a>
+        </div>
+    </section></div>
+    <div class="col-md-4"><section class="module-card">
+        <span class="step-number">2</span><h2>Registra el pedido</h2>
+        <p>Selecciona al comprador y el primer producto. Agrega más productos desde Detalles de pedidos.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-controller="Pedidos" asp-action="Index" class="btn btn-primary">Pedidos</a>
+            <a asp-controller="DetallePedidos" asp-action="Index" class="btn btn-outline-secondary">Sus productos</a>
+        </div>
+    </section></div>
+    <div class="col-md-4"><section class="module-card">
+        <span class="step-number">3</span><h2>Registra el pago</h2>
+        <p>Selecciona el pedido e ingresa el método, el monto y el estado de su pago.</p>
+        <a asp-controller="Pagos" asp-action="Index" class="btn btn-primary align-self-start">Pagos</a>
+    </section></div>
+</div>
+<section class="module-card">
+    <h2 class="mt-0">Revisa los resultados</h2>
+    <p>Consulta los pedidos por período o identifica productos activos con pocas existencias.</p>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-controller="Reportes" asp-action="VentasPorPeriodo" class="btn btn-outline-primary">Ventas por período</a>
+        <a asp-controller="Reportes" asp-action="ProductosBajoStock" class="btn btn-outline-primary">Productos con bajo stock</a>
+    </div>
+</section>

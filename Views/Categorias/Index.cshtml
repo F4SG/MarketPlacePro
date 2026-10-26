@@ -7,8 +7,9 @@
 <h1>Categorías</h1>
 
 <p>
-    <a asp-action="Create">Crear categoría</a>
+    <a asp-action="Create" class="btn btn-primary">Crear categoría</a>
 </p>
+<div class="table-responsive">
 <table class="table">
     <thead>
         <tr>
@@ -37,11 +38,12 @@
                 @Html.DisplayFor(modelItem => item.Imagen)
             </td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Editar</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Detalles</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Eliminar</a>
+                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Editar</a>
+                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Detalles</a>
+                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-outline-danger">Eliminar</a>
             </td>
         </tr>
 }
     </tbody>
 </table>
+</div>

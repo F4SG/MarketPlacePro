@@ -16,7 +16,7 @@ else
             {
                 <tr>
                     <td>@usuario.Nombre</td><td>@usuario.Correo</td><td>@usuario.Ciudad</td><td>@usuario.Rol</td><td>@usuario.NombreTienda</td>
-                    <td><a asp-action="Edit" asp-route-id="@usuario.Id">Editar</a> | <a asp-action="Details" asp-route-id="@usuario.Id">Detalles</a> | <a asp-action="Delete" asp-route-id="@usuario.Id">Eliminar</a></td>
+                    <td><a asp-action="Edit" asp-route-id="@usuario.Id" class="btn btn-sm btn-outline-secondary">Editar</a>  <a asp-action="Details" asp-route-id="@usuario.Id" class="btn btn-sm btn-outline-primary">Detalles</a>  <a asp-action="Delete" asp-route-id="@usuario.Id" class="btn btn-sm btn-outline-danger">Eliminar</a></td>
                 </tr>
             }
             </tbody>

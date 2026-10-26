@@ -1,3 +1,9 @@
+@{
+    var controlador = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Home";
+    var accion = ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+    var catalogo = controlador is "Categorias" or "Productos";
+    var compras = controlador is "Carritos" or "DetallesCarrito" or "Pedidos" or "DetallePedidos" or "Pagos";
+}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -9,41 +15,42 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/MarketPlacePro.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="app-shell">
+    <a href="#contenido" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0">Saltar al contenido</a>
     <header>
-        <nav class="navbar navbar-expand-lg navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">MarketPlacePro</a>
+        <nav class="navbar navbar-expand-lg navbar-toggleable-sm navbar-light app-navbar">
+            <div class="container-xl">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index"><span class="brand-mark" aria-hidden="true">M</span>MarketPlacePro</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Abrir o cerrar el menú">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div id="navbarSupportedContent" class="navbar-collapse collapse d-lg-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Inicio</a></li>
-                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Usuarios" asp-action="Index">Usuarios</a></li>
+                        <li class="nav-item"><a class="nav-link @(controlador == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index">Inicio</a></li>
+                        <li class="nav-item"><a class="nav-link @(controlador == "Usuarios" ? "active" : "")" asp-controller="Usuarios" asp-action="Index">Usuarios</a></li>
                         <li class="nav-item dropdown">
-                            <button class="nav-link dropdown-toggle text-dark" id="menu-catalogo" type="button" data-bs-toggle="dropdown" aria-expanded="false">Catálogo</button>
+                            <button class="nav-link dropdown-toggle @(catalogo ? "active" : "")" id="menu-catalogo" type="button" data-bs-toggle="dropdown" aria-expanded="false">Catálogo</button>
                             <ul class="dropdown-menu" aria-labelledby="menu-catalogo">
-                                <li><a class="dropdown-item" asp-controller="Categorias" asp-action="Index">Categorías</a></li>
-                                <li><a class="dropdown-item" asp-controller="Productos" asp-action="Index">Productos</a></li>
+                                <li><a class="dropdown-item @(controlador == "Categorias" && accion == "Index" ? "active" : "")" asp-controller="Categorias" asp-action="Index">Categorías</a></li>
+                                <li><a class="dropdown-item @(controlador == "Productos" && accion == "Index" ? "active" : "")" asp-controller="Productos" asp-action="Index">Productos</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
-                            <button class="nav-link dropdown-toggle text-dark" id="menu-compras" type="button" data-bs-toggle="dropdown" aria-expanded="false">Compras</button>
+                            <button class="nav-link dropdown-toggle @(compras ? "active" : "")" id="menu-compras" type="button" data-bs-toggle="dropdown" aria-expanded="false">Compras</button>
                             <ul class="dropdown-menu" aria-labelledby="menu-compras">
-                                <li><a class="dropdown-item" asp-controller="Carritos" asp-action="Index">Carritos</a></li>
-                                <li><a class="dropdown-item" asp-controller="DetallesCarrito" asp-action="Index">Detalles del carrito</a></li>
-                                <li><a class="dropdown-item" asp-controller="Pedidos" asp-action="Index">Pedidos</a></li>
-                                <li><a class="dropdown-item" asp-controller="DetallePedidos" asp-action="Index">Detalles de pedidos</a></li>
-                                <li><a class="dropdown-item" asp-controller="Pagos" asp-action="Index">Pagos</a></li>
+                                <li><a class="dropdown-item @(controlador == "Carritos" && accion == "Index" ? "active" : "")" asp-controller="Carritos" asp-action="Index">Carritos</a></li>
+                                <li><a class="dropdown-item @(controlador == "DetallesCarrito" && accion == "Index" ? "active" : "")" asp-controller="DetallesCarrito" asp-action="Index">Detalles del carrito</a></li>
+                                <li><a class="dropdown-item @(controlador == "Pedidos" && accion == "Index" ? "active" : "")" asp-controller="Pedidos" asp-action="Index">Pedidos</a></li>
+                                <li><a class="dropdown-item @(controlador == "DetallePedidos" && accion == "Index" ? "active" : "")" asp-controller="DetallePedidos" asp-action="Index">Detalles de pedidos</a></li>
+                                <li><a class="dropdown-item @(controlador == "Pagos" && accion == "Index" ? "active" : "")" asp-controller="Pagos" asp-action="Index">Pagos</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
-                            <button class="nav-link dropdown-toggle text-dark" id="menu-reportes" type="button" data-bs-toggle="dropdown" aria-expanded="false">Reportes</button>
+                            <button class="nav-link dropdown-toggle @(controlador == "Reportes" ? "active" : "")" id="menu-reportes" type="button" data-bs-toggle="dropdown" aria-expanded="false">Reportes</button>
                             <ul class="dropdown-menu" aria-labelledby="menu-reportes">
-                                <li><a class="dropdown-item" asp-controller="Reportes" asp-action="VentasPorPeriodo">Ventas por período</a></li>
-                                <li><a class="dropdown-item" asp-controller="Reportes" asp-action="ProductosBajoStock">Productos con bajo stock</a></li>
+                                <li><a class="dropdown-item @(controlador == "Reportes" && accion == "VentasPorPeriodo" ? "active" : "")" asp-controller="Reportes" asp-action="VentasPorPeriodo">Ventas por período</a></li>
+                                <li><a class="dropdown-item @(controlador == "Reportes" && accion == "ProductosBajoStock" ? "active" : "")" asp-controller="Reportes" asp-action="ProductosBajoStock">Productos con bajo stock</a></li>
                             </ul>
                         </li>
                     </ul>
@@ -51,15 +58,28 @@
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+    <main id="contenido" class="container-xl py-4" tabindex="-1">
+        @if (controlador != "Home")
+        {
+            <nav aria-label="Ruta de navegación">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Inicio</a></li>
+                    @if (accion != "Index" && controlador != "Reportes")
+                    {
+                        <li class="breadcrumb-item"><a asp-controller="@controlador" asp-action="Index">Volver al listado</a></li>
+                    }
+                    <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
+                </ol>
+            </nav>
+        }
+        <div class="@(controlador == "Home" && accion == "Index" ? "" : "page-surface")">
             @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - MarketPlacePro - <a asp-area="" asp-controller="Home" asp-action="Acerca">Acerca de MarketPlacePro</a>
+        </div>
+    </main>
+    <footer class="app-footer">
+        <div class="container-xl d-flex flex-wrap justify-content-between gap-2">
+            <span>&copy; 2026 MarketPlacePro</span>
+            <a asp-controller="Home" asp-action="Acerca">Acerca del proyecto</a>
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
