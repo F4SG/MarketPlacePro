@@ -33,7 +33,7 @@
 
             <div class="form-group mb-3">
                 <label asp-for="Cantidad" class="control-label">Cantidad</label>
-                <input asp-for="Cantidad" class="form-control" min="1" type="number" />
+                <input asp-for="Cantidad" class="form-control" type="number" min="1" max="2147483647" step="1" required />
                 <span asp-validation-for="Cantidad" class="text-danger"></span>
             </div>
 

@@ -69,8 +69,8 @@ namespace MarketPlacePro.Controllers
             var producto = await _context.Productos
                 .FirstOrDefaultAsync(p => p.Id == detallePedido.ProductoId);
 
-            if (producto == null)
-                ModelState.AddModelError(nameof(detallePedido.ProductoId), "El producto seleccionado no existe.");
+            if (producto == null || producto.Estado != "activo")
+                ModelState.AddModelError(nameof(detallePedido.ProductoId), "Seleccione un producto activo.");
 
             if (producto != null && detallePedido.Cantidad > 0)
             {
@@ -129,8 +129,8 @@ namespace MarketPlacePro.Controllers
             var producto = await _context.Productos
                 .FirstOrDefaultAsync(p => p.Id == detallePedido.ProductoId);
 
-            if (producto == null)
-                ModelState.AddModelError(nameof(detallePedido.ProductoId), "El producto seleccionado no existe.");
+            if (producto == null || (producto.Estado != "activo" && producto.Id != detalleExistente.ProductoId))
+                ModelState.AddModelError(nameof(detallePedido.ProductoId), "Seleccione un producto activo.");
 
             if (ModelState.IsValid && producto != null)
             {
@@ -201,6 +201,7 @@ namespace MarketPlacePro.Controllers
 
             var productos = await _context.Productos
                 .AsNoTracking()
+                .Where(p => p.Estado == "activo" || p.Id == productoId)
                 .OrderBy(p => p.Nombre)
                 .ToListAsync();
 

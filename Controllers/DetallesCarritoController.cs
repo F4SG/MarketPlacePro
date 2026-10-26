@@ -51,6 +51,7 @@ namespace MarketPlacePro.Controllers
         private async Task CargarListasAsync(long? carritoSeleccionado = null, long? productoSeleccionado = null)
         {
             var carritos = await _context.Carritos.AsNoTracking()
+                .Where(c => c.Estado == "activo" || c.Id == carritoSeleccionado)
                 .Include(c => c.Usuario)
                 .Select(c => new { c.Id, Texto = $"Carrito de {c.Usuario.Nombre} (#{c.Id})" })
                 .ToListAsync();
@@ -76,13 +77,15 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Cantidad,FechaAgregado,CarritoId,ProductoId")] DetalleCarrito detalleCarrito)
         {
-            if (!await _context.Carritos.AnyAsync(c => c.Id == detalleCarrito.CarritoId))
+            if (!await _context.Carritos.AnyAsync(c => c.Id == detalleCarrito.CarritoId && c.Estado == "activo"))
             {
-                ModelState.AddModelError(nameof(DetalleCarrito.CarritoId), "El carrito seleccionado no existe.");
+                ModelState.AddModelError(nameof(DetalleCarrito.CarritoId), "Seleccione un carrito activo.");
             }
-            if (!await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId))
+            if (detalleCarrito.Cantidad <= 0)
+                ModelState.AddModelError(nameof(DetalleCarrito.Cantidad), "La cantidad debe ser mayor que cero.");
+            if (!await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId && p.Estado == "activo"))
             {
-                ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "El producto seleccionado no existe.");
+                ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Seleccione un producto activo.");
             }
             else if (await _context.DetallesCarrito.AnyAsync(d => d.CarritoId == detalleCarrito.CarritoId && d.ProductoId == detalleCarrito.ProductoId))
             {
@@ -129,13 +132,15 @@ namespace MarketPlacePro.Controllers
                 return NotFound();
             }
 
-            if (!await _context.Carritos.AnyAsync(c => c.Id == detalleCarrito.CarritoId))
+            if (!await _context.Carritos.AnyAsync(c => c.Id == detalleCarrito.CarritoId && c.Estado == "activo"))
             {
-                ModelState.AddModelError(nameof(DetalleCarrito.CarritoId), "El carrito seleccionado no existe.");
+                ModelState.AddModelError(nameof(DetalleCarrito.CarritoId), "Seleccione un carrito activo.");
             }
-            if (!await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId))
+            if (detalleCarrito.Cantidad <= 0)
+                ModelState.AddModelError(nameof(DetalleCarrito.Cantidad), "La cantidad debe ser mayor que cero.");
+            if (!await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId && p.Estado == "activo"))
             {
-                ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "El producto seleccionado no existe.");
+                ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Seleccione un producto activo.");
             }
 
             if (await _context.DetallesCarrito.AnyAsync(d => d.CarritoId == detalleCarrito.CarritoId &&

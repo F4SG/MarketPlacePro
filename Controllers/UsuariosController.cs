@@ -24,11 +24,12 @@ public class UsuariosController : Controller
     public IActionResult Create() => View(new Usuario { FechaRegistro = DateTime.Now });
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("Nombre,Correo,Contrasena,Ciudad,Telefono,FechaRegistro,Rol,NombreTienda,DescripcionTienda")] Usuario usuario)
+    public async Task<IActionResult> Create([Bind("Nombre,Correo,Contrasena,Ciudad,Telefono,Rol,NombreTienda,DescripcionTienda")] Usuario usuario)
     {
         await ValidarAsync(usuario, true);
         if (ModelState.IsValid)
         {
+            usuario.FechaRegistro = DateTime.UtcNow;
             usuario.Contrasena = new PasswordHasher<Usuario>().HashPassword(usuario, usuario.Contrasena);
             _context.Usuarios.Add(usuario);
             if (await GuardarAsync()) return RedirectToAction(nameof(Index));
@@ -46,7 +47,7 @@ public class UsuariosController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(long id, [Bind("Id,Nombre,Correo,Contrasena,Ciudad,Telefono,FechaRegistro,Rol,NombreTienda,DescripcionTienda")] Usuario usuario)
+    public async Task<IActionResult> Edit(long id, [Bind("Id,Nombre,Correo,Contrasena,Ciudad,Telefono,Rol,NombreTienda,DescripcionTienda")] Usuario usuario)
     {
         if (id != usuario.Id) return NotFound();
         var existente = await _context.Usuarios.FindAsync(id);
@@ -60,7 +61,6 @@ public class UsuariosController : Controller
             existente.Correo = usuario.Correo;
             existente.Ciudad = usuario.Ciudad;
             existente.Telefono = usuario.Telefono;
-            existente.FechaRegistro = usuario.FechaRegistro;
             existente.Rol = usuario.Rol;
             existente.NombreTienda = usuario.NombreTienda;
             existente.DescripcionTienda = usuario.DescripcionTienda;
@@ -111,21 +111,25 @@ public class UsuariosController : Controller
     private async Task ValidarAsync(Usuario usuario, bool crear)
     {
         usuario.Nombre = usuario.Nombre?.Trim() ?? string.Empty;
-        usuario.Correo = usuario.Correo?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(usuario.Nombre)) ModelState.AddModelError(nameof(Usuario.Nombre), "Ingrese el nombre.");
-        if (string.IsNullOrWhiteSpace(usuario.Correo) || !new EmailAddressAttribute().IsValid(usuario.Correo))
-            ModelState.AddModelError(nameof(Usuario.Correo), "Ingrese un correo válido.");
-        if (crear && string.IsNullOrWhiteSpace(usuario.Contrasena)) ModelState.AddModelError(nameof(Usuario.Contrasena), "Ingrese una contraseña.");
-        if (usuario.Rol is not ("comprador" or "vendedor" or "admin")) ModelState.AddModelError(nameof(Usuario.Rol), "Seleccione un rol válido.");
-        foreach (var campo in new (string Nombre, string? Valor, int Maximo)[]
-        {
-            (nameof(Usuario.Nombre), usuario.Nombre, 255), (nameof(Usuario.Correo), usuario.Correo, 255),
-            (nameof(Usuario.Contrasena), usuario.Contrasena, 255), (nameof(Usuario.Ciudad), usuario.Ciudad, 255),
-            (nameof(Usuario.Telefono), usuario.Telefono, 50), (nameof(Usuario.NombreTienda), usuario.NombreTienda, 255),
-            (nameof(Usuario.DescripcionTienda), usuario.DescripcionTienda, 1000)
-        })
-            if (campo.Valor?.Length > campo.Maximo) ModelState.AddModelError(campo.Nombre, $"Use como máximo {campo.Maximo} caracteres.");
-        if (await _context.Usuarios.AnyAsync(u => u.Correo == usuario.Correo && u.Id != usuario.Id))
+        usuario.Correo = usuario.Correo?.Trim().ToLowerInvariant() ?? string.Empty;
+        usuario.Ciudad = CiudadesBolivia.Normalizar(usuario.Ciudad);
+        usuario.Telefono = string.IsNullOrWhiteSpace(usuario.Telefono) ? null : usuario.Telefono.Trim();
+        usuario.NombreTienda = usuario.NombreTienda?.Trim();
+        usuario.DescripcionTienda = usuario.DescripcionTienda?.Trim();
+        var errores = new List<ValidationResult>();
+        Validator.TryValidateObject(usuario, new ValidationContext(usuario), errores, true);
+        foreach (var error in errores)
+            foreach (var campo in error.MemberNames)
+                if (!ModelState.TryGetValue(campo, out var entrada) || entrada.Errors.Count == 0)
+                    ModelState.AddModelError(campo, error.ErrorMessage!);
+        if (crear && string.IsNullOrWhiteSpace(usuario.Contrasena))
+            ModelState.AddModelError(nameof(Usuario.Contrasena), "Ingrese una contraseña de al menos 8 caracteres.");
+        else if (!string.IsNullOrEmpty(usuario.Contrasena) &&
+            (string.IsNullOrWhiteSpace(usuario.Contrasena) || usuario.Contrasena.Length < 8))
+            ModelState.AddModelError(nameof(Usuario.Contrasena), "La contraseña debe tener al menos 8 caracteres y no estar formada solo por espacios.");
+        if (usuario.Rol == "vendedor" && string.IsNullOrWhiteSpace(usuario.NombreTienda))
+            ModelState.AddModelError(nameof(Usuario.NombreTienda), "Ingrese el nombre de la tienda del vendedor.");
+        if (await _context.Usuarios.AnyAsync(u => u.Correo.ToLower() == usuario.Correo && u.Id != usuario.Id))
             ModelState.AddModelError(nameof(Usuario.Correo), "Ya existe un usuario con ese correo.");
     }
 

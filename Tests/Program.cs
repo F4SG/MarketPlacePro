@@ -378,6 +378,121 @@ await Check("Error al guardar la compra revierte el vaciado del carrito", async 
         && await db.DetallesCarrito.CountAsync() == 1, "La compra dejó cambios parciales.");
 });
 
+await Check("Nombres personales aceptan tildes y compuestos y rechazan números", () =>
+{
+    foreach (var nombre in new[] { "María José", "Óscar Núñez", "Ana-María Pérez", "O'Connor", "D’Angelo" })
+    {
+        var u = new Usuario { Nombre = nombre, Correo = "prueba@example.invalid" };
+        Assert(Validator.TryValidateObject(u, new ValidationContext(u), [], true), "Nombre válido rechazado: " + nombre);
+    }
+    foreach (var nombre in new[] { "Ana123", "123", " ", "A", "Ana@Pérez" })
+    {
+        var u = new Usuario { Nombre = nombre, Correo = "prueba@example.invalid" };
+        Assert(!Validator.TryValidateObject(u, new ValidationContext(u), [], true), "Nombre inválido aceptado: " + nombre);
+    }
+    return Task.CompletedTask;
+});
+await Check("Ciudades y teléfonos se validan también en el servidor", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    foreach (var campo in new[] { "Ciudad", "Telefono", "Nombre", "Contrasena", "NombreTienda" })
+    {
+        var u = new Usuario { Nombre = "María Pérez", Correo = campo + "@example.invalid", Contrasena = "ClaveDePrueba" };
+        if (campo == "Ciudad") u.Ciudad = "Madrid";
+        if (campo == "Telefono") u.Telefono = "hola123";
+        if (campo == "Nombre") u.Nombre = "Ana123";
+        if (campo == "Contrasena") u.Contrasena = "123";
+        if (campo == "NombreTienda") u.Rol = "vendedor";
+        var c = new UsuariosController(db);
+        Assert(await c.Create(u) is ViewResult && c.ModelState.ContainsKey(campo), "Se aceptó " + campo + " inválido.");
+    }
+    Assert(await db.Usuarios.CountAsync() == 3, "Se guardó un usuario inválido.");
+    foreach (var telefono in new[] { "71234567", "+59171234567", "+591 71234567" })
+    {
+        var u = new Usuario { Nombre = "María Pérez", Correo = "tel@example.invalid", Ciudad = "La Paz", Telefono = telefono };
+        Assert(Validator.TryValidateObject(u, new ValidationContext(u), [], true), "Teléfono válido rechazado.");
+    }
+});
+await Check("Usuario normaliza datos, protege la contraseña y conserva fecha al editar", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    var u = new Usuario { Nombre = " María Pérez ", Correo = " NUEVA@EXAMPLE.INVALID ", Contrasena = "ClaveDePrueba",
+        Ciudad = " la paz ", Telefono = "+591 71234567", FechaRegistro = new DateTime(2000, 1, 1) };
+    Assert(await new UsuariosController(db).Create(u) is RedirectToActionResult, "No guardó el usuario válido.");
+    db.ChangeTracker.Clear();
+    var saved = await db.Usuarios.SingleAsync(x => x.Correo == "nueva@example.invalid");
+    Assert(saved.Nombre == "María Pérez" && saved.Ciudad == "La Paz" && saved.FechaRegistro!.Value.Year > 2000,
+        "Datos sin normalizar o fecha manipulada.");
+    var hash = saved.Contrasena; var fecha = saved.FechaRegistro;
+    Assert(new Microsoft.AspNetCore.Identity.PasswordHasher<Usuario>().VerifyHashedPassword(saved, hash, "ClaveDePrueba")
+        != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed, "Contraseña sin hash válido.");
+    var c = new UsuariosController(db);
+    Assert(await c.Edit(saved.Id, new Usuario { Id = saved.Id, Nombre = "María Pérez", Correo = saved.Correo,
+        Contrasena = "", Ciudad = "El Alto", FechaRegistro = new DateTime(1900, 1, 1) }) is RedirectToActionResult,
+        "No pudo editar sin cambiar contraseña.");
+    db.ChangeTracker.Clear(); saved = await db.Usuarios.FindAsync(saved.Id);
+    Assert(saved!.Contrasena == hash && saved.FechaRegistro == fecha && saved.Ciudad == "El Alto", "Se alteró la fecha o el hash.");
+});
+await Check("Correo duplicado se rechaza aunque cambien las mayúsculas", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    var c = new UsuariosController(db);
+    Assert(await c.Create(new Usuario { Nombre = "Otro Comprador", Correo = "COMPRADOR@EXAMPLE.INVALID", Contrasena = "ClaveDePrueba" })
+        is ViewResult && !c.ModelState.IsValid, "Se aceptó el correo duplicado.");
+    Assert(await db.Usuarios.CountAsync() == 3, "Se persistió el duplicado.");
+});
+await Check("Datos generados cumplen las validaciones de usuario y precisión monetaria", () =>
+{
+    foreach (var u in new UsuarioFaker().Generate(50))
+        Assert(Validator.TryValidateObject(u, new ValidationContext(u), [], true), "El generador creó un usuario inválido.");
+    foreach (var p in new ProductoFaker(new long[] { 2 }, new long[] { 1 }).Generate(50))
+        Assert(decimal.Round(p.Precio, 2) == p.Precio, "Precio generado con más de dos decimales.");
+    return Task.CompletedTask;
+});
+await Check("No agrega productos inactivos a carrito ni a pedido", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1 });
+    (await db.Productos.FindAsync(1L))!.Estado = "inactivo";
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    var carrito = new DetallesCarritoController(db);
+    Assert(await carrito.Create(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = 1 })
+        is ViewResult && !carrito.ModelState.IsValid, "Agregó un producto inactivo al carrito.");
+    var pedido = new DetallePedidosController(db);
+    Assert(await pedido.Create(new DetallePedido { PedidoId = 1, ProductoId = 1, Cantidad = 1 })
+        is ViewResult && !pedido.ModelState.IsValid, "Agregó un producto inactivo al pedido.");
+    Assert(!await db.DetallesCarrito.AnyAsync() && !await db.DetallesPedido.AnyAsync(), "Persistió el producto inactivo.");
+});
+await Check("No permite agregar productos a carritos abandonados", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1, Estado = "abandonado" });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    var c = new DetallesCarritoController(db);
+    Assert(await c.Create(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = 1 })
+        is ViewResult && !c.ModelState.IsValid, "Aceptó el carrito abandonado.");
+    Assert(!await db.DetallesCarrito.AnyAsync(), "Guardó el detalle inválido.");
+});
+await Check("Pagos rechazan pedidos vacíos, cancelados y fechas futuras", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    var c = new PagosController(db);
+    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 })
+        is ViewResult && !c.ModelState.IsValid, "Aceptó un pedido vacío.");
+    await AddDetail(db);
+    (await db.Pedidos.FindAsync(1L))!.Estado = "cancelada";
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    c = new PagosController(db);
+    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 })
+        is ViewResult && !c.ModelState.IsValid, "Aceptó un pedido cancelado.");
+    (await db.Pedidos.FindAsync(1L))!.Estado = "pendiente";
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    c = new PagosController(db);
+    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20, FechaPago = DateTime.UtcNow.AddDays(2) })
+        is ViewResult && c.ModelState.ContainsKey("FechaPago"), "Aceptó una fecha futura.");
+    Assert(!await db.Pagos.AnyAsync(), "Se persistió un pago inválido.");
+});
+
 Console.WriteLine($"Resultado: {passed} correctas, {failures.Count} fallidas.");
 if (failures.Count > 0) Environment.ExitCode = 1;
 

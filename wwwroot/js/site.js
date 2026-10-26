@@ -1,4 +1,12 @@
-﻿// Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
-
-// Write your JavaScript code.
+document.addEventListener("DOMContentLoaded", () => {
+    const rol = document.getElementById("Rol");
+    const tienda = document.getElementById("NombreTienda");
+    if (rol && tienda) {
+        const actualizarTienda = () => {
+            tienda.required = rol.value === "vendedor";
+            tienda.setAttribute("aria-required", String(tienda.required));
+        };
+        rol.addEventListener("change", actualizarTienda);
+        actualizarTienda();
+    }
+});

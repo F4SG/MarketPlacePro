@@ -46,7 +46,7 @@
 
             <div class="form-group mb-3">
                 <label asp-for="FechaPago" class="control-label">Fecha de pago</label>
-                <input asp-for="FechaPago" type="datetime-local" class="form-control" />
+                <input asp-for="FechaPago" type="datetime-local" class="form-control" max="@DateTime.UtcNow.AddHours(-4).ToString("yyyy-MM-ddT23:59")" />
                 <span asp-validation-for="FechaPago" class="text-danger"></span>
             </div>
 

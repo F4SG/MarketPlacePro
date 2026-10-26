@@ -9,7 +9,13 @@ System.Globalization.CultureInfo.DefaultThreadCurrentCulture = cultura;
 System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = cultura;
 
 builder.Services.AddControllersWithViews()
-    .AddMvcOptions(options => options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true);
+    .AddMvcOptions(options =>
+    {
+        options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+        options.ModelBindingMessageProvider.SetValueMustNotBeNullAccessor(_ => "Seleccione o ingrese un valor.");
+        options.ModelBindingMessageProvider.SetAttemptedValueIsInvalidAccessor((_, campo) => $"Ingrese un valor válido para {campo}.");
+        options.ModelBindingMessageProvider.SetValueMustBeANumberAccessor(campo => $"Ingrese un número válido para {campo}.");
+    });
 
 builder.Services.AddDbContext<MarketPlaceProContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MarketPlacePro")));

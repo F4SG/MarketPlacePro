@@ -9,7 +9,7 @@ public sealed class ProductoFaker : Faker<Producto>
     {
         RuleFor(p => p.Nombre, f => f.Commerce.ProductName());
         RuleFor(p => p.Descripcion, f => f.Commerce.ProductDescription());
-        RuleFor(p => p.Precio, f => f.Random.Decimal(10, 2000));
+        RuleFor(p => p.Precio, f => decimal.Round(f.Random.Decimal(10, 2000), 2));
         RuleFor(p => p.Stock, f => f.Random.Int(0, 100));
         RuleFor(p => p.Estado, f => f.PickRandom(new[] { "activo", "activo", "activo", "agotado", "pausado" }));
         RuleFor(p => p.FechaPublicacion, f => f.Date.Past(1, DateTime.UtcNow));

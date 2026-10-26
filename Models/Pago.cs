@@ -11,6 +11,8 @@ public class Pago
     [Range(typeof(decimal), "0.01", "99999999.99", ErrorMessage = "El monto debe estar entre 0.01 y 99999999.99.")]
     [ImporteMonetario]
     public decimal Monto { get; set; }
+    [Required(ErrorMessage = "Seleccione un estado.")]
+    [RegularExpression("^(pendiente|completado|rechazado|reembolsado)$", ErrorMessage = "Seleccione un estado válido.")]
     [StringLength(20)]
     public string Estado { get; set; } = "pendiente";
     [StringLength(255, ErrorMessage = "La referencia admite hasta 255 caracteres.")]

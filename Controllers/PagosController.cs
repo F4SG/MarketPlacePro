@@ -53,7 +53,7 @@ namespace MarketPlacePro.Controllers
 
         public async Task<IActionResult> Create(long? pedidoId = null)
         {
-            var pago = new Pago { FechaPago = DateTime.Now, Estado = "pendiente" };
+            var pago = new Pago { FechaPago = DateTime.UtcNow.AddHours(-4), Estado = "pendiente" };
             if (pedidoId.HasValue)
             {
                 var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Pago)
@@ -87,6 +87,10 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(pago.PedidoId), "Este pedido ya tiene un pago registrado.");
             }
 
+            if (pedido != null && (pedido.Estado == "cancelada" ||
+                !await _context.DetallesPedido.AnyAsync(d => d.PedidoId == pedido.Id)))
+                ModelState.AddModelError(nameof(pago.PedidoId), "Seleccione un pedido con productos que no esté cancelado.");
+
             if (ModelState.IsValid)
             {
                 pago.Metodo = pago.Metodo.Trim();
@@ -98,7 +102,7 @@ namespace MarketPlacePro.Controllers
                     pago.Referencia = pago.Referencia.Trim();
 
                 if (pago.FechaPago == default)
-                    pago.FechaPago = DateTime.Now;
+                    pago.FechaPago = DateTime.UtcNow.AddHours(-4);
 
                 _context.Pagos.Add(pago);
                 if (await Persistencia.GuardarAsync(this, _context))
@@ -149,6 +153,10 @@ namespace MarketPlacePro.Controllers
             {
                 ModelState.AddModelError(nameof(pago.PedidoId), "Este pedido ya tiene otro pago registrado.");
             }
+
+            if (pedido != null && pagoExistente.PedidoId != pago.PedidoId &&
+                (pedido.Estado == "cancelada" || !await _context.DetallesPedido.AnyAsync(d => d.PedidoId == pedido.Id)))
+                ModelState.AddModelError(nameof(pago.PedidoId), "Seleccione un pedido con productos que no esté cancelado.");
 
             if (ModelState.IsValid)
             {
@@ -207,6 +215,9 @@ namespace MarketPlacePro.Controllers
             if (string.IsNullOrWhiteSpace(pago.Metodo))
                 ModelState.AddModelError(nameof(pago.Metodo), "El método de pago es obligatorio.");
 
+            if (pago.FechaPago.Date > DateTime.UtcNow.AddHours(-4).Date)
+                ModelState.AddModelError(nameof(pago.FechaPago), "La fecha de pago no puede ser posterior a hoy.");
+
             if (pago.Monto <= 0)
                 ModelState.AddModelError(nameof(pago.Monto), "El monto debe ser mayor que cero.");
 
@@ -221,6 +232,8 @@ namespace MarketPlacePro.Controllers
         {
             var pedidos = await _context.Pedidos
                 .AsNoTracking()
+                .Where(p => (p.Estado != "cancelada" && p.Detalles.Any()) ||
+                    (pagoId.HasValue && p.Pago != null && p.Pago.Id == pagoId.Value))
                 .Where(p => !_context.Pagos.Any(pg =>
                     pg.PedidoId == p.Id &&
                     (!pagoId.HasValue || pg.Id != pagoId.Value)))
