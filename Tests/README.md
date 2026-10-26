@@ -1,15 +1,14 @@
-# Pruebas de regresión
+# Verificación de MarketPlacePro
 
-Ejecutar desde la carpeta del proyecto:
+Desde la carpeta del proyecto:
 
 ```powershell
 dotnet run --project Tests/MarketPlacePro.Regression.csproj
+dotnet run --project Tests/MarketPlacePro.Regression.csproj -- --web
 ```
 
-Las pruebas usan bases SQLite temporales en memoria. No se conectan a la base de SQL Server ni modifican datos del usuario. La comprobación del esquema usa el proveedor SQL Server y la migración existente sin abrir una conexión.
+La primera ejecución comprueba reglas de datos, precios históricos, totales transaccionales, participación mínima de pedidos, integridad referencial, validaciones personales, stock, confirmación y devolución sin duplicados, pagos del flujo anterior y población de demostración idempotente. Incluye dos conexiones SQLite que compiten por la última unidad y comprueba que solo una venta la consume.
 
-Se comprueban los límites de fechas del reporte en horario de Bolivia, productos con el mismo nombre, validaciones, duplicados al editar, eliminaciones relacionadas, conservación del precio histórico y actualización transaccional de los totales al crear, editar, mover y eliminar detalles. Incluye rechazo de importes excesivos y rollback ante un error de integridad.
+La segunda usa TestServer con los controladores y vistas de la aplicación, una base SQLite en memoria y datos ficticios. Comprueba nueve pantallas, carrito a pedido, confirmación de cobro por el total calculado, repetición, devolución, foto multipart y antifalsificación. Guarda las respuestas HTML en una carpeta temporal hermana del repositorio para inspección; elimina la foto de prueba al terminar.
 
-También se comprueba que un pedido se cree junto con su primer detalle, que no se pueda vaciar al eliminar o mover el último detalle y que un pedido vacío anterior no pueda completarse. La participación mínima se aplica a todos los estados, conforme al DER actualizado.
-
-Estas pruebas no reemplazan una prueba de funcionamiento con SQL Server ni una prueba de concurrencia de múltiples usuarios.
+No se conecta a la base de SQL Server del usuario. El esquema se compara con las migraciones usando el proveedor SQL Server sin conexión. La concurrencia de SQL Server y la instalación real se deben verificar en la instancia de destino.

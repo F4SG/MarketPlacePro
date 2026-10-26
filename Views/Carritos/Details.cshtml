@@ -34,7 +34,7 @@ else
     {
         <section class="border rounded-3 p-3 mb-4">
             <h2 class="h5">Confirmar pedido</h2>
-            <p>Se guardarán los productos con sus precios actuales y se vaciará este carrito para reutilizarlo. El stock se administra manualmente desde Productos.</p>
+            <p>Se guardarán los productos con sus precios actuales y se vaciará este carrito para reutilizarlo. El stock se verificará y descontará al confirmar el cobro; este paso no reserva existencias.</p>
             <form asp-action="CrearPedido" asp-route-id="@Model.Id" method="post">
                 <button type="submit" class="btn btn-primary">Confirmar y crear pedido</button>
             </form>

@@ -1,4 +1,5 @@
-
+using System.Data;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,14 +12,6 @@ namespace MarketPlacePro.Controllers
     {
         private readonly MarketPlaceProContext _context;
 
-        private readonly string[] _estados =
-        {
-            "pendiente",
-            "completada",
-            "cancelada",
-            "en_proceso"
-        };
-
         public PedidosController(MarketPlaceProContext context)
         {
             _context = context;
@@ -29,6 +22,7 @@ namespace MarketPlacePro.Controllers
             var pedidos = await _context.Pedidos
                 .AsNoTracking()
                 .Include(p => p.Comprador)
+                .Include(p => p.Pago)
                 .OrderByDescending(p => p.FechaPedido)
                 .ToListAsync();
 
@@ -60,7 +54,6 @@ namespace MarketPlacePro.Controllers
         public IActionResult Create()
         {
             CargarCompradores();
-            CargarEstados();
             CargarProductos();
             return View(new NuevoPedidoViewModel());
         }
@@ -68,7 +61,7 @@ namespace MarketPlacePro.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            [Bind("NumeroPedido,Estado,UsuarioId,ProductoId,Cantidad")] NuevoPedidoViewModel formulario)
+            [Bind("NumeroPedido,UsuarioId,ProductoId,Cantidad")] NuevoPedidoViewModel formulario)
         {
             formulario.NumeroPedido = formulario.NumeroPedido?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(formulario.NumeroPedido))
@@ -77,7 +70,7 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(formulario.NumeroPedido), "Ya existe un pedido con ese número.");
             if (!await _context.Usuarios.AnyAsync(u => u.Id == formulario.UsuarioId))
                 ModelState.AddModelError(nameof(formulario.UsuarioId), "El comprador seleccionado no existe.");
-            if (!_estados.Contains(formulario.Estado))
+            if (formulario.Estado != "pendiente")
                 ModelState.AddModelError(nameof(formulario.Estado), "El estado seleccionado no es válido.");
             if (formulario.Cantidad <= 0)
                 ModelState.AddModelError(nameof(formulario.Cantidad), "La cantidad debe ser mayor que cero.");
@@ -111,7 +104,6 @@ namespace MarketPlacePro.Controllers
                     return RedirectToAction(nameof(Details), new { id = pedido.Id });
             }
             CargarCompradores(formulario.UsuarioId);
-            CargarEstados(formulario.Estado);
             CargarProductos(formulario.ProductoId);
             return View(formulario);
         }
@@ -131,7 +123,6 @@ namespace MarketPlacePro.Controllers
             }
 
             CargarCompradores(pedido.UsuarioId);
-            CargarEstados(pedido.Estado);
 
             return View(pedido);
         }
@@ -140,7 +131,7 @@ namespace MarketPlacePro.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(
             long id,
-            [Bind("Id,NumeroPedido,Estado,UsuarioId")] Pedido pedido)
+            [Bind("Id,NumeroPedido,UsuarioId")] Pedido pedido)
         {
             if (id != pedido.Id)
             {
@@ -170,13 +161,6 @@ namespace MarketPlacePro.Controllers
                     "El comprador seleccionado no existe.");
             }
 
-            if (!_estados.Contains(pedido.Estado))
-            {
-                ModelState.AddModelError(
-                    nameof(pedido.Estado),
-                    "El estado seleccionado no es válido.");
-            }
-
             var pedidoExistente = await _context.Pedidos.FindAsync(id);
 
             if (pedidoExistente == null)
@@ -184,10 +168,11 @@ namespace MarketPlacePro.Controllers
                 return NotFound();
             }
 
+            if (pedido.Estado != "pendiente" && pedido.Estado != pedidoExistente.Estado)
+                ModelState.AddModelError(nameof(pedido.Estado), "El estado se cambia mediante cobro, cancelación o devolución.");
             if (ModelState.IsValid)
             {
                 pedidoExistente.NumeroPedido = pedido.NumeroPedido;
-                pedidoExistente.Estado = pedido.Estado;
                 pedidoExistente.UsuarioId = pedido.UsuarioId;
 
                 if (await Persistencia.GuardarAsync(this, _context,
@@ -195,10 +180,10 @@ namespace MarketPlacePro.Controllers
                     return RedirectToAction(nameof(Details), new { id });
             }
 
+            pedido.Estado = pedidoExistente.Estado;
             pedido.Subtotal = pedidoExistente.Subtotal;
             pedido.Total = pedidoExistente.Total;
             CargarCompradores(pedido.UsuarioId);
-            CargarEstados(pedido.Estado);
 
             return View(pedido);
         }
@@ -234,10 +219,18 @@ namespace MarketPlacePro.Controllers
                 return NotFound();
             }
 
-            _context.Pedidos.Remove(pedido);
-            await _context.SaveChangesAsync();
-
-            return RedirectToAction(nameof(Index));
+            if (await Persistencia.GuardarAsync(this, _context, async () =>
+            {
+                await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                var actual = await _context.Pedidos.AsNoTracking().Include(p => p.Pago).SingleAsync(p => p.Id == id);
+                if (actual.Estado == "completada" || actual.Pago?.Estado is "completado" or "reembolsado")
+                    throw new ValidationException("Las ventas cobradas o devueltas se conservan como historial. Usa Devolución completa cuando corresponda.");
+                _context.Pedidos.Remove(pedido);
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+            })) return RedirectToAction(nameof(Index));
+            pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Comprador).SingleAsync(p => p.Id == id);
+            return View("Delete", pedido);
         }
 
         private void CargarCompradores(long? usuarioSeleccionado = null)
@@ -259,11 +252,47 @@ namespace MarketPlacePro.Controllers
             ViewData["Productos"] = new SelectList(productos, "Id", "Texto", productoSeleccionado);
         }
 
-        private void CargarEstados(string? estadoSeleccionado = null)
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Cancelar(long id, bool confirmar)
         {
-            ViewData["Estados"] = new SelectList(
-                _estados,
-                estadoSeleccionado);
+            if (!confirmar) ModelState.AddModelError(string.Empty, "Confirma la cancelación del pedido.");
+            if (ModelState.IsValid && await Persistencia.GuardarAsync(this, _context, () => Ventas.CancelarAsync(_context, id)))
+            {
+                TempData["Exito"] = "Pedido cancelado. No se descontó stock ni se confirmó un cobro.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            return await DetalleConErrores(id);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Devolver(long id, bool confirmar)
+        {
+            if (!confirmar) ModelState.AddModelError(string.Empty, "Confirma la devolución de todos los productos y del dinero.");
+            if (ModelState.IsValid && await Persistencia.GuardarAsync(this, _context, () => Ventas.DevolverAsync(_context, id)))
+            {
+                TempData["Exito"] = "Devolución completa registrada: pago reembolsado. Se repusieron las unidades descontadas automáticamente.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            return await DetalleConErrores(id);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> ReabrirPendiente(long id, bool confirmar)
+        {
+            if (!confirmar) ModelState.AddModelError(string.Empty, "Confirma la revisión del pedido antiguo.");
+            if (ModelState.IsValid && await Persistencia.GuardarAsync(this, _context, () => Ventas.ReabrirPendienteAsync(_context, id)))
+            {
+                TempData["Exito"] = "Pedido reabierto para revisión. Confirma el cobro únicamente cuando hayas verificado el dinero.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            return await DetalleConErrores(id);
+        }
+
+        private async Task<IActionResult> DetalleConErrores(long id)
+        {
+            var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Comprador)
+                .Include(p => p.Detalles).Include(p => p.Pago).SingleOrDefaultAsync(p => p.Id == id);
+            return pedido == null ? NotFound() : View("Details", pedido);
         }
     }
 }

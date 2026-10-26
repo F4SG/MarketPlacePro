@@ -12,11 +12,13 @@ namespace MarketPlacePro.Controllers
 {
     public class ProductosController : Controller
     {
+        private readonly AlmacenImagenes? _imagenes;
         private readonly MarketPlaceProContext _context;
 
-        public ProductosController(MarketPlaceProContext context)
+        public ProductosController(MarketPlaceProContext context, AlmacenImagenes? imagenes = null)
         {
             _context = context;
+            _imagenes = imagenes;
         }
 
         // GET: Productos
@@ -55,9 +57,9 @@ namespace MarketPlacePro.Controllers
 
         // POST: Productos/Create
         [HttpPost]
-        [ValidateAntiForgeryToken]
+        [ValidateAntiForgeryToken, RequestSizeLimit(4 * 1024 * 1024)]
         public async Task<IActionResult> Create(
-            [Bind("Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
+            [Bind("Nombre,Descripcion,Precio,Stock,Estado,UsuarioId,CategoriaId")] Producto producto, IFormFile? foto = null)
         {
             if (!await _context.Categorias.AnyAsync(c => c.Id == producto.CategoriaId))
             {
@@ -68,10 +70,19 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(Producto.UsuarioId), "El vendedor seleccionado no existe.");
             }
 
+            if (producto.Estado is "activo" or "agotado") producto.Estado = producto.Stock == 0 ? "agotado" : "activo";
             if (ModelState.IsValid)
             {
-                _context.Add(producto);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                string? nueva = null;
+                if (await Persistencia.GuardarAsync(this, _context, async () =>
+                {
+                    if (foto != null) nueva = await _imagenes!.GuardarAsync(foto);
+                    producto.Imagen = nueva ?? "/images/demo/catalogo.svg";
+                    producto.FechaPublicacion = DateTime.UtcNow;
+                    _context.Add(producto);
+                    await _context.SaveChangesAsync();
+                })) return RedirectToAction(nameof(Index));
+                _imagenes?.EliminarNueva(nueva);
             }
 
             CargarListas(producto.CategoriaId, producto.UsuarioId);
@@ -92,9 +103,9 @@ namespace MarketPlacePro.Controllers
 
         // POST: Productos/Edit/5
         [HttpPost]
-        [ValidateAntiForgeryToken]
+        [ValidateAntiForgeryToken, RequestSizeLimit(4 * 1024 * 1024)]
         public async Task<IActionResult> Edit(long id,
-            [Bind("Id,Nombre,Descripcion,Precio,Stock,Imagen,Estado,FechaPublicacion,UsuarioId,CategoriaId")] Producto producto)
+            [Bind("Id,Nombre,Descripcion,Precio,Stock,Estado,UsuarioId,CategoriaId")] Producto producto, IFormFile? foto = null, int? stockAnterior = null)
         {
             if (id != producto.Id) return NotFound();
 
@@ -107,10 +118,25 @@ namespace MarketPlacePro.Controllers
                 ModelState.AddModelError(nameof(Producto.UsuarioId), "El vendedor seleccionado no existe.");
             }
 
+            if (producto.Estado is "activo" or "agotado") producto.Estado = producto.Stock == 0 ? "agotado" : "activo";
             if (ModelState.IsValid)
             {
-                _context.Update(producto);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                string? nueva = null;
+                if (await Persistencia.GuardarAsync(this, _context, async () =>
+                {
+                    await using var tx = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+                    var anterior = await _context.Productos.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id)
+                        ?? throw new System.ComponentModel.DataAnnotations.ValidationException("El registro ya no existe.");
+                    if (!stockAnterior.HasValue || stockAnterior != anterior.Stock)
+                        throw new System.ComponentModel.DataAnnotations.ValidationException("El stock cambió desde que abriste el formulario. Vuelve a abrir el producto antes de ajustar existencias.");
+                    if (foto != null) nueva = await _imagenes!.GuardarAsync(foto);
+                    producto.Imagen = nueva ?? anterior.Imagen;
+                    producto.FechaPublicacion = anterior.FechaPublicacion;
+                    _context.Update(producto);
+                    await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
+                })) return RedirectToAction(nameof(Index));
+                _imagenes?.EliminarNueva(nueva);
             }
 
             CargarListas(producto.CategoriaId, producto.UsuarioId);

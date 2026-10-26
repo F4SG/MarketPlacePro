@@ -9,10 +9,12 @@ namespace MarketPlacePro.Controllers;
 public class ReportesController : Controller
 {
     private readonly MarketPlaceProContext _context;
+    private readonly int _umbral;
 
-    public ReportesController(MarketPlaceProContext context)
+    public ReportesController(MarketPlaceProContext context, IConfiguration? configuration = null)
     {
         _context = context;
+        _umbral = Math.Max(0, configuration?.GetValue<int?>("Inventario:UmbralBajoStock") ?? 5);
     }
 
     public async Task<IActionResult> VentasPorPeriodo(DateTime? desde, DateTime? hasta, string estado = "completada")
@@ -32,8 +34,12 @@ public class ReportesController : Controller
         // Los pedidos se registran en UTC; los filtros representan días completos de Bolivia.
         var desdeUtc = new DateTimeOffset(desdeFecha, TimeSpan.FromHours(-4)).UtcDateTime;
         var hastaUtcExclusivo = new DateTimeOffset(hastaFecha.AddDays(1), TimeSpan.FromHours(-4)).UtcDateTime;
-        var pedidos = _context.Pedidos.AsNoTracking().Where(p =>
-            p.FechaPedido >= desdeUtc && p.FechaPedido < hastaUtcExclusivo && p.Estado == estado);
+        var pedidos = _context.Pedidos.AsNoTracking().Where(p => p.Estado == estado);
+        if (estado == "completada")
+            pedidos = pedidos.Where(p => p.Pago != null && p.Pago.Estado == "completado" &&
+                p.Pago.FechaPago >= desdeUtc && p.Pago.FechaPago < hastaUtcExclusivo);
+        else
+            pedidos = pedidos.Where(p => p.FechaPedido >= desdeUtc && p.FechaPedido < hastaUtcExclusivo);
         modelo.Filas = await _context.DetallesPedido.AsNoTracking()
             .Where(d => pedidos.Select(p => p.Id).Contains(d.PedidoId))
             .GroupBy(d => new { d.ProductoId, d.Producto.Nombre, d.Producto.CategoriaId,
@@ -54,9 +60,10 @@ public class ReportesController : Controller
         return View(modelo);
     }
 
-    public async Task<IActionResult> ProductosBajoStock(int umbral = 5, long? categoriaId = null)
+    public async Task<IActionResult> ProductosBajoStock(int? umbral = null, long? categoriaId = null)
     {
-        var modelo = new ReporteStockViewModel { Umbral = umbral, CategoriaId = categoriaId };
+        umbral ??= _umbral;
+        var modelo = new ReporteStockViewModel { Umbral = umbral.Value, CategoriaId = categoriaId };
         var categorias = await _context.Categorias.AsNoTracking().OrderBy(c => c.Nombre).ToListAsync();
         ViewData["Categorias"] = new SelectList(categorias, "Id", "Nombre", categoriaId);
 
@@ -67,7 +74,7 @@ public class ReportesController : Controller
         if (!ModelState.IsValid) return View(modelo);
 
         var query = _context.Productos.AsNoTracking()
-            .Where(p => p.Estado == "activo" && p.Stock <= umbral);
+            .Where(p => (p.Estado == "activo" || p.Estado == "agotado") && p.Stock <= umbral);
         if (categoriaId.HasValue)
             query = query.Where(p => p.CategoriaId == categoriaId.Value);
 

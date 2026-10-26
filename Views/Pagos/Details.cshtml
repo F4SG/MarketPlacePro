@@ -1,30 +1,13 @@
 @model MarketPlacePro.Models.Pago
-
-@{
-    ViewData["Title"] = "Detalles del pago";
-}
-
-<h1>Detalles del pago</h1>
-
+@{ ViewData["Title"] = "Pago del pedido " + Model.Pedido.NumeroPedido; }
+<h1>@ViewData["Title"]</h1>
 <dl class="row">
-    <dt class="col-sm-3">Método de pago</dt>
-    <dd class="col-sm-9">@Model.Metodo</dd>
-
-    <dt class="col-sm-3">Monto</dt>
-    <dd class="col-sm-9">@Model.Monto.ToString("N2")</dd>
-
-    <dt class="col-sm-3">Estado</dt>
-    <dd class="col-sm-9">@Model.Estado</dd>
-
-    <dt class="col-sm-3">Referencia</dt>
-    <dd class="col-sm-9">@Model.Referencia</dd>
-
-    <dt class="col-sm-3">Fecha de pago</dt>
-    <dd class="col-sm-9">@Model.FechaPago.ToString("dd/MM/yyyy HH:mm")</dd>
-
-    <dt class="col-sm-3">Número de pedido</dt>
-    <dd class="col-sm-9">@Model.Pedido.NumeroPedido</dd>
+    <dt class="col-sm-3">Estado</dt><dd class="col-sm-9"><span class="status-badge status-@Model.Estado">@Model.Estado</span></dd>
+    <dt class="col-sm-3">Método</dt><dd class="col-sm-9">@Model.Metodo</dd>
+    <dt class="col-sm-3">Monto</dt><dd class="col-sm-9">Bs @Model.Monto.ToString("F2")</dd>
+    <dt class="col-sm-3">Referencia</dt><dd class="col-sm-9">@(Model.Referencia ?? "No aplica")</dd>
+    <dt class="col-sm-3">Fecha (Bolivia)</dt><dd class="col-sm-9">@Model.FechaPago.AddHours(-4).ToString("dd/MM/yyyy HH:mm")</dd>
 </dl>
-
-<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Editar</a>
-<a asp-action="Index" class="btn btn-secondary">Volver</a>
+<p>Los pagos se conservan como historial. Las confirmaciones y devoluciones se realizan desde el pedido.</p>
+<a asp-controller="Pedidos" asp-action="Details" asp-route-id="@Model.PedidoId" class="btn btn-primary">Abrir pedido</a>
+<a asp-action="Index" class="btn btn-outline-secondary">Volver a pagos</a>

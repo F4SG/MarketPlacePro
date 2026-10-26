@@ -18,6 +18,7 @@ public class Pago
     [StringLength(255, ErrorMessage = "La referencia admite hasta 255 caracteres.")]
     public string? Referencia { get; set; }
     public DateTime FechaPago { get; set; }
+    public bool StockDescontado { get; set; }
 
     public long PedidoId { get; set; }
     public Pedido Pedido { get; set; } = null!;

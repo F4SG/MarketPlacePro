@@ -1,7 +1,7 @@
 @model MarketPlacePro.Models.ReporteStockViewModel
 @{ ViewData["Title"] = "Productos con bajo stock"; }
 <h1>Productos con bajo stock</h1>
-<p>Productos activos con stock menor o igual al umbral seleccionado.</p>
+<p>Productos a la venta o agotados con stock menor o igual al umbral seleccionado. Los pausados e inactivos se excluyen.</p>
 <form asp-action="ProductosBajoStock" method="get" class="row g-3 mb-4">
     <div asp-validation-summary="All" class="text-danger" role="alert"></div>
     <div class="col-sm-3">

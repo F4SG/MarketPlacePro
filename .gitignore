@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Archivos adjuntos durante el uso de la aplicación
+wwwroot/uploads/

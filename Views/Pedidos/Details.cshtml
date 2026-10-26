@@ -1,7 +1,35 @@
+@using MarketPlacePro.Data
 @model MarketPlacePro.Models.Pedido
-@{ ViewData["Title"] = "Pedido " + Model.NumeroPedido; }
-<div class="eyebrow mb-2">Paso 2 · Pedido</div>
+@{ ViewData["Title"] = "Pedido " + Model.NumeroPedido; var abierto = Ventas.EstaAbierto(Model); }
+<div class="eyebrow mb-2">Compra · Pedido y cobro</div>
 <h1 class="text-break">@ViewData["Title"]</h1>
+<div asp-validation-summary="All" class="text-danger" role="alert"></div>
+@if (Model.Estado == "completada" && Model.Pago?.Estado == "completado")
+{
+    <div class="alert alert-success"><strong>Venta finalizada.</strong> Pago confirmado y existencias descontadas. Puedes consultar esta venta en Reportes.</div>
+}
+else if (Model.Pago?.Estado == "reembolsado")
+{
+    <div class="alert alert-info">Venta devuelta. Se registró el reembolso completo y se repusieron las unidades que tenían descuento automático.</div>
+}
+else if (Model.Estado == "cancelada")
+{
+    <div class="alert alert-secondary">Pedido cancelado. No está disponible para cobrar.</div>
+}
+else
+{
+    <div class="alert alert-warning"><strong>Falta confirmar el cobro.</strong> El pedido conserva los precios, pero aún no reserva ni descuenta stock.</div>
+}
+@if (Model.Estado == "completada" && Model.Pago?.Estado is not ("completado" or "reembolsado") && Model.Pago?.StockDescontado != true)
+{
+    <div class="alert alert-warning">
+        <p>Este pedido del flujo anterior está marcado como completado, pero no tiene un cobro confirmado. Reábrelo para revisar sus datos y confirmar el dinero.</p>
+        <form asp-action="ReabrirPendiente" asp-route-id="@Model.Id" method="post">
+            <div class="form-check mb-2"><input type="checkbox" name="confirmar" value="true" id="reabrir-pedido" class="form-check-input" required /><label for="reabrir-pedido" class="form-check-label">Confirmo que revisaré este pedido.</label></div>
+            <button class="btn btn-outline-primary" type="submit">Reabrir para revisión</button>
+        </form>
+    </div>
+}
 <dl class="row my-4">
     <dt class="col-sm-3">Comprador</dt><dd class="col-sm-9">@Model.Comprador.Nombre</dd>
     <dt class="col-sm-3">Estado</dt><dd class="col-sm-9"><span class="status-badge status-@Model.Estado">@Model.Estado.Replace("_", " ")</span></dd>
@@ -9,50 +37,65 @@
 </dl>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
     <h2 class="h5 mb-0">Productos del pedido</h2>
-    <a asp-controller="DetallePedidos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-outline-primary">Agregar producto</a>
+    @if (abierto) { <a asp-controller="DetallePedidos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-outline-primary">Agregar producto</a> }
 </div>
 @if (!Model.Detalles.Any())
 {
-    <div class="alert alert-warning mt-3">Este pedido antiguo no tiene productos. Agrega al menos uno para poder actualizarlo.</div>
+    <div class="alert alert-warning mt-3">Este pedido antiguo no tiene productos. Agrega al menos uno antes de cobrarlo.</div>
 }
 else
 {
     <div class="table-responsive"><table class="table">
-        <thead><tr><th>Producto</th><th class="text-end">Precio registrado</th><th class="text-end">Cantidad</th><th class="text-end">Subtotal</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="text-end">Precio registrado</th><th class="text-end">Cantidad</th><th class="text-end">Subtotal</th>@if (abierto) { <th>Acciones</th> }</tr></thead>
         <tbody>
         @foreach (var detalle in Model.Detalles.OrderBy(d => d.Id))
         {
-            <tr><td>@detalle.NombreProducto</td><td class="text-end text-nowrap">Bs @detalle.PrecioUnitario.ToString("F2")</td>
-                <td class="text-end">@detalle.Cantidad</td><td class="text-end text-nowrap">Bs @detalle.Subtotal.ToString("F2")</td>
+            <tr><td>@detalle.NombreProducto</td><td class="text-end text-nowrap">Bs @detalle.PrecioUnitario.ToString("F2")</td><td class="text-end">@detalle.Cantidad</td><td class="text-end text-nowrap">Bs @detalle.Subtotal.ToString("F2")</td>
+            @if (abierto)
+            {
                 <td><a asp-controller="DetallePedidos" asp-action="Edit" asp-route-id="@detalle.Id" class="btn btn-sm btn-outline-secondary">Editar</a>
-                    @if (Model.Detalles.Count > 1)
-                    {
-                        <a asp-controller="DetallePedidos" asp-action="Delete" asp-route-id="@detalle.Id" class="btn btn-sm btn-outline-danger">Quitar</a>
-                    }
-                </td></tr>
+                @if (Model.Detalles.Count > 1) { <a asp-controller="DetallePedidos" asp-action="Delete" asp-route-id="@detalle.Id" class="btn btn-sm btn-outline-danger">Quitar</a> }</td>
+            }
+            </tr>
         }
         </tbody>
     </table></div>
 }
-<p class="text-end fs-5"><strong>Total: Bs @Model.Total.ToString("F2")</strong></p>
+<p class="text-end fs-4"><strong>Total: Bs @Model.Total.ToString("F2")</strong></p>
 <section class="border rounded-3 p-3 my-4">
-    <div class="eyebrow mb-2">Paso 3 · Pago</div>
-    @if (Model.Pago == null)
+    <h2 class="h5">Cobro</h2>
+    @if (Model.Pago != null)
     {
-        <h2 class="h5">Sin pago registrado</h2>
-        <p>Registra el pago de este pedido. El formulario tendrá el pedido y su importe seleccionados.</p>
-        <a asp-controller="Pagos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-primary">Registrar pago</a>
+        <p>@Model.Pago.Metodo.ToUpperInvariant() · Bs @Model.Pago.Monto.ToString("F2") · <span class="status-badge status-@Model.Pago.Estado">@Model.Pago.Estado</span></p>
+        <p class="text-muted">Referencia: @(Model.Pago.Referencia ?? "No aplica")</p>
     }
-    else
+    else { <p>Este pedido todavía no tiene un pago confirmado.</p> }
+    @if (abierto && Model.Detalles.Any())
     {
-        <h2 class="h5">@Model.Pago.Metodo · Bs @Model.Pago.Monto.ToString("F2")</h2>
-        <p><span class="status-badge status-@Model.Pago.Estado">@Model.Pago.Estado</span> <span class="ms-2">Referencia: @(Model.Pago.Referencia ?? "Sin referencia")</span></p>
-        <a asp-controller="Pagos" asp-action="Edit" asp-route-id="@Model.Pago.Id" class="btn btn-outline-primary">Editar pago</a>
+        <a asp-controller="Pagos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-primary">Confirmar cobro y finalizar venta</a>
     }
 </section>
-<p class="text-muted">El estado del pedido se actualiza desde Editar pedido. Ventas por período muestra los pedidos completados de forma predeterminada.</p>
+@if (abierto)
+{
+    <details class="border rounded-3 p-3 mb-4"><summary>Cancelar este pedido sin cobrar</summary>
+        <form asp-action="Cancelar" asp-route-id="@Model.Id" method="post" class="mt-3">
+            <div class="form-check mb-3"><input type="checkbox" name="confirmar" value="true" id="cancelar-pedido" class="form-check-input" required /><label for="cancelar-pedido" class="form-check-label">Confirmo que quiero cancelar este pedido.</label></div>
+            <button class="btn btn-outline-danger" type="submit">Cancelar pedido</button>
+        </form>
+    </details>
+}
+@if (Model.Estado == "completada" && Model.Pago?.Estado == "completado")
+{
+    <details class="border rounded-3 p-3 mb-4"><summary>Registrar devolución completa</summary>
+        <p class="mt-3">Úsalo después de devolver el dinero y recibir todos los productos. Se repondrán las unidades que tenían descuento automático y el pago quedará reembolsado. Los pagos del flujo anterior no reponen stock que el sistema no descontó.</p>
+        <form asp-action="Devolver" asp-route-id="@Model.Id" method="post">
+            <div class="form-check mb-3"><input type="checkbox" name="confirmar" value="true" id="devolver-pedido" class="form-check-input" required /><label for="devolver-pedido" class="form-check-label">Confirmo la devolución de todos los productos y del dinero.</label></div>
+            <button class="btn btn-outline-danger" type="submit">Registrar devolución completa</button>
+        </form>
+    </details>
+}
 <div class="d-flex flex-wrap gap-2">
-    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Editar pedido</a>
+    @if (abierto) { <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Editar datos del pedido</a> }
     <a asp-controller="Reportes" asp-action="VentasPorPeriodo" class="btn btn-outline-secondary">Consultar ventas</a>
     <a asp-action="Index" class="btn btn-outline-secondary">Volver a pedidos</a>
 </div>

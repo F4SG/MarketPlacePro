@@ -1,3 +1,4 @@
+@using MarketPlacePro.Data
 @model IEnumerable<MarketPlacePro.Models.DetallePedido>
 
 @{
@@ -32,9 +33,9 @@
                 <td>@item.Subtotal.ToString("N2")</td>
                 <td>@item.Pedido.NumeroPedido</td>
                 <td>
-                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Editar</a>
+                    @if (Ventas.EstaAbierto(item.Pedido)) { <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Editar</a> }
                     <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Detalles</a>
-                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Eliminar</a>
+                    @if (Ventas.EstaAbierto(item.Pedido)) { <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Eliminar</a> }
                 </td>
             </tr>
         }

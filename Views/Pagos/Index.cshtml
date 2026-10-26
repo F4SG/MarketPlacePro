@@ -8,7 +8,7 @@
 <h1>Pagos</h1>
 
 <p>
-    <a asp-action="Create" class="btn btn-primary">Registrar pago</a>
+    <a asp-action="Create" class="btn btn-primary">Seleccionar pedido para cobrar</a>
 </p>
 
 <div class="table-responsive">
@@ -35,9 +35,9 @@
                 <td>@item.FechaPago.ToString("dd/MM/yyyy HH:mm")</td>
                 <td>@item.Pedido.NumeroPedido</td>
                 <td>
-                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Editar</a>
+                    <a asp-controller="Pedidos" asp-action="Details" asp-route-id="@item.PedidoId" class="btn btn-sm btn-outline-primary">Abrir pedido</a>
                     <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Detalles</a>
-                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Eliminar</a>
+
                 </td>
             </tr>
         }

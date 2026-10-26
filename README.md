@@ -15,18 +15,16 @@ Aplicación web para gestionar usuarios, productos, carritos, pedidos y pagos de
 ## Requisitos
 
 - .NET 10 SDK.
-- SQL Server, SQL Server Express o LocalDB.
-- `dotnet-ef` versión 10 para aplicar las migraciones.
-
-Si la herramienta de Entity Framework no está instalada:
+- SQL Server, SQL Server Express o LocalDB iniciado.
+- Herramienta `dotnet-ef` 10 para ejecutar migraciones desde la terminal.
 
 ```powershell
 dotnet tool install --global dotnet-ef --version "10.*"
 ```
 
-## Instalación y ejecución
+## Preparar y ejecutar
 
-### 1 Clonar el proyecto
+Clonar el repositorio o extraer el ZIP y abrir la carpeta que contiene `MarketPlacePro.csproj`:
 
 ```powershell
 git clone https://github.com/F4SG/MarketPlacePro.git
@@ -34,9 +32,7 @@ cd MarketPlacePro
 dotnet restore MarketPlacePro.csproj
 ```
 
-### 2 Configurar la conexión
-
-Editar `ConnectionStrings:MarketPlacePro` en `appsettings.json` con la instancia de SQL Server que se utilizará:
+Configurar `ConnectionStrings:MarketPlacePro` en `appsettings.json`. La conexión incluida usa autenticación de Windows:
 
 ```json
 "ConnectionStrings": {
@@ -44,92 +40,98 @@ Editar `ConnectionStrings:MarketPlacePro` en `appsettings.json` con la instancia
 }
 ```
 
-La configuración usa autenticación de Windows. Para SQL Server Express, usar `Server=.\\SQLEXPRESS`; para LocalDB, `Server=(localdb)\\mssqllocaldb` dentro del JSON.
+Para SQL Server Express usar `Server=.\\SQLEXPRESS` dentro del JSON. Para LocalDB usar `Server=(localdb)\\mssqllocaldb`. También se puede suministrar la conexión mediante la variable de entorno `ConnectionStrings__MarketPlacePro`, sin guardar credenciales en el repositorio.
 
-### 3 Crear la base de datos
-
-Con SQL Server iniciado, ejecutar:
+Crear o actualizar el esquema y cargar los datos de demostración:
 
 ```powershell
 dotnet ef database update --project MarketPlacePro.csproj
+dotnet run --project MarketPlacePro.csproj --no-launch-profile -- --inicializar
 ```
 
-Se creará la base `MarketPlacePro` mediante la migración `InicialMarketPlacePro`.
-
-### 4 Iniciar la aplicación
+El primer comando aplica las migraciones; el segundo carga la demostración habilitada y termina sin abrir el servidor. Al iniciar normalmente, la aplicación también aplica las migraciones pendientes e inicializa la demostración si corresponde.
 
 ```powershell
 dotnet run --project MarketPlacePro.csproj --launch-profile http
 ```
 
-Abrir [http://localhost:5196](http://localhost:5196). Para detener la aplicación, presionar `Ctrl+C`.
+Abrir [http://localhost:5196](http://localhost:5196). Detener con `Ctrl+C`. El perfil `https` está disponible en el puerto 7204.
 
-También está disponible el perfil `https` en el puerto 7204. Para usarlo:
+## Datos de demostración
 
-```powershell
-dotnet dev-certs https --trust
-dotnet run --project MarketPlacePro.csproj --launch-profile https
-```
+En una base vacía se agregan 6 usuarios, 4 categorías, 12 productos, 3 carritos, 5 pedidos, 8 detalles de pedido, 3 detalles de carrito y 3 pagos. Las imágenes son archivos locales incluidos en el proyecto. Todos los datos son ficticios.
 
-## Datos de prueba
+La carga se realiza en una sola transacción. Si ya existe algún usuario del conjunto de demostración, no se vuelve a insertar ni se sobrescriben los cambios hechos durante el uso. En una base anterior, sus registros se conservan y se agrega el conjunto de muestra si aún no existe. Para repetir la demostración desde cero, usar otra base de datos de prueba en la conexión.
 
-Al iniciar, el generador con Bogus completa hasta 30 usuarios, 6 categorías y 60 productos. Las cantidades se configuran en `DatosIniciales`, dentro de `appsettings.json`. Los registros existentes se conservan.
+Los campos opcionales se completan cuando corresponde: los vendedores tienen tienda, los compradores pueden no tenerla y los pedidos sin cobrar pueden no tener pago. Las contraseñas de muestra se almacenan como hash. Los roles clasifican a los usuarios; este proyecto no incluye inicio de sesión ni autorización por rol.
 
-Para desactivar la generación automática:
+Para deshabilitar la carga, configurar:
 
 ```json
-"DatosIniciales": {
-  "CantidadUsuarios": 0,
-  "CantidadProductos": 0
-}
+"DatosDemostracion": { "Habilitados": false }
 ```
 
-Los pedidos y pagos se registran desde la aplicación. El reporte de ventas mostrará resultados cuando existan pedidos con detalles en el período y estado seleccionados.
+Casos preparados:
 
-## Módulos
+- Carrito de María Pérez: teclado compacto y dos tazas, total Bs 290.00, listo para demostrar una venta.
+- Dos ventas completadas con sus pagos confirmados, total Bs 445.00, visibles en el reporte inicial.
+- Dos pedidos pendientes, uno con un registro de pago QR aún por verificar.
+- Un pedido cancelado sin cobro.
+- Productos con stock normal, bajo y agotado; un producto pausado para comprobar los filtros.
 
-- **Usuarios:** registro, consulta, edición y eliminación, con validación de correo único y roles.
-- **Categorías y productos:** administración del catálogo, precios, existencias y vendedores.
-- **Carritos y sus detalles:** gestión de productos y cantidades, sin repetir un producto dentro del mismo carrito.
-- **Pedidos y sus detalles:** registro de compras y cálculo de importes.
-- **Pagos:** registro del método, monto, estado y referencia del pago de un pedido.
+## Flujo de venta
 
-Cada módulo tiene acceso desde el menú y desde la página de inicio. Las listas y formularios muestran nombres de usuarios, categorías y productos en sus relaciones.
+1. Registrar comprador, vendedor y categoría cuando sean necesarios.
+2. Publicar un producto con precio, stock e imagen. Abrir el carrito del comprador y agregar productos.
+3. Confirmar el carrito: se crea un pedido pendiente con sus precios históricos y se vacía el carrito para reutilizarlo. Este paso no reserva ni descuenta stock.
+4. Abrir el pedido y pulsar **Confirmar cobro y finalizar venta**. Seleccionar efectivo, transferencia o QR. Transferencia y QR requieren referencia.
+5. Confirmar que se recibió o verificó el dinero. El servidor obtiene el total del pedido, vuelve a comprobar existencias y, en una sola transacción, completa el pago, completa el pedido y descuenta stock.
+6. Revisar la confirmación de venta y los reportes.
 
-### Reglas de pedidos e importes
+El sistema registra cobros de forma manual: no procesa dinero ni verifica cuentas bancarias. Un pedido completado representa una venta cobrada dentro del alcance del proyecto; no representa un envío entregado.
 
-Desde Carritos, abrir el carrito del usuario y usar Agregar producto. Al confirmar, se crea un pedido pendiente con todos sus productos y los precios vigentes. El pedido, sus detalles y el vaciado del carrito se guardan en una sola transacción. El carrito queda activo y puede reutilizarse; confirmar de nuevo un carrito vacío no crea otro pedido. Los carritos vacíos o no activos y los productos no activos se rechazan.
+Cada pedido admite como máximo un pago. Se cobra su total, sin abonos parciales. Un pago pendiente o rechazado se confirma actualizando el mismo registro. Las fechas de cobro se asignan en UTC y se muestran en horario de Bolivia. No se escriben estados ni montos libremente.
 
-También se puede registrar un pedido directamente seleccionando el comprador, el estado, el primer producto y su cantidad. El pedido y ese detalle se guardan juntos. Desde la pantalla del pedido se pueden agregar, editar o quitar productos, conservando al menos uno.
+El pedido se puede crear también directamente con su primer producto. Siempre conserva al menos un detalle. Los subtotales se calculan como precio registrado por cantidad; el total es la suma de detalles, sin impuestos ni descuentos. Cambiar solo la cantidad conserva el precio histórico; cambiar el producto toma su precio actual.
 
-La pantalla del pedido muestra sus productos, total y pago. Registrar pago abre el formulario con el pedido y su importe seleccionados. Registrar o editar un pago vuelve al pedido. El estado del pedido se cambia de forma manual desde Editar pedido; registrar un pago no lo marca automáticamente como completado.
+## Stock y operaciones posteriores
 
-Todo pedido conserva al menos un detalle, incluso estando pendiente. No se permite eliminar ni trasladar su último detalle; sí se puede eliminar el pedido completo.
+- Las cantidades son enteras positivas y el stock no puede ser negativo.
+- La disponibilidad a la venta se muestra como agotada cuando el stock es cero. Pausado e inactivo son decisiones independientes del inventario.
+- El cobro usa actualizaciones condicionales dentro de una transacción. Si falta stock o falla el guardado, no se confirma el pago ni se aplican descuentos parciales.
+- Repetir un cobro confirmado no genera otro pago ni vuelve a descontar unidades.
+- Los pedidos cobrados, devueltos o cancelados no permiten editar sus productos, comprador o importes. Los pagos cobrados y reembolsados se conservan como historial.
+- Cancelar un pedido pendiente no modifica stock, porque no estaba reservado.
+- La devolución es completa: se confirma la devolución del dinero y de todos los productos, el pago pasa a reembolsado, el pedido a cancelado y se reponen una sola vez las unidades que tenían descuento automático.
+- Los ajustes manuales de inventario comprueban que el stock no haya cambiado desde que se abrió el formulario.
 
-El subtotal de un detalle es su precio unitario por la cantidad. El subtotal y el total del pedido se calculan sumando sus detalles. Al editar una cantidad se conserva el precio registrado; al cambiar el producto se toma el precio del nuevo producto.
+El umbral de bajo stock es general y configurable en `Inventario:UmbralBajoStock`, inicialmente 5. No es un stock mínimo diferente para cada producto y no se utiliza como límite de venta.
 
-Un usuario puede no tener carrito y un producto puede no tener ventas. Cada carrito pertenece a un usuario, con un máximo de un carrito por usuario. Cada pedido admite como máximo un pago.
+## Imágenes y validaciones
 
-El stock se administra desde Productos y los pagos se registran manualmente. No se incluyen descuentos, impuestos ni pasarela de cobro.
+Productos y categorías aceptan archivos PNG, JPG y WebP de hasta 3 MB. Se comprueban tamaño, extensión y firma del formato. La vista previa permite revisar la foto antes de guardar. Los archivos se guardan con nombres aleatorios en `wwwroot/uploads`; la base almacena su ruta. Al editar sin adjunto se conserva la imagen anterior. Las fotos adjuntadas durante el uso no se incluyen en Git: para trasladar una instalación con fotos propias hay que copiar esa carpeta además de la base.
+
+Los nombres personales admiten letras latinas, tildes, espacios, guiones y apóstrofes, sin números. Los nombres de productos y tiendas pueden contener números. El selector de ciudad incluye las nueve capitales departamentales y El Alto; no pretende incluir todos los municipios de Bolivia. El teléfono admite ocho dígitos y prefijo +591 opcional. Se validan correos únicos, importes con dos decimales, relaciones existentes y datos de tienda para vendedores. Las validaciones se aplican también en el servidor.
 
 ## Reportes
 
-### Ventas por período
+**Ventas por período:** filtra fechas y estado. De forma predeterminada muestra únicamente pedidos completados con pago confirmado y utiliza la fecha del cobro. Resume productos, unidades, montos, cantidad de pedidos y producto con más unidades. Los límites incluyen días completos de Bolivia (UTC-4). Los pedidos reembolsados dejan de formar parte de las ventas completadas. Al consultar otros estados se usa la fecha del pedido y se muestran importes de pedidos, no dinero cobrado.
 
-Permite consultar los productos vendidos y los montos de los pedidos de un período. Sirve para dar seguimiento a las ventas e identificar los productos con mayor cantidad vendida.
+**Productos con bajo stock:** filtra umbral y categoría. Incluye productos a la venta o agotados con stock menor o igual al umbral; excluye pausados e inactivos. Muestra vendedor, precio, unidades y valor del inventario disponible, ordenado desde las menores existencias.
 
-- **Filtros:** fecha inicial, fecha final y estado del pedido. Por defecto muestra los pedidos completados.
-- **Información:** código y nombre del producto, categoría, cantidad vendida y monto total.
-- **Resumen:** cantidad de pedidos, monto total y producto con más unidades vendidas.
+Ambos reportes consultan la base de datos y cuentan con filtros y resúmenes propios.
 
-Las fechas representan días completos en horario de Bolivia, UTC-4. La consulta obtiene los datos de pedidos y detalles almacenados en la base y distingue los productos por su identificador, aunque tengan el mismo nombre. Si se elige otro estado, los resultados corresponden a pedidos de ese estado.
+## DER y migraciones
 
-### Productos con bajo stock
+Se mantienen las ocho entidades y las nueve relaciones. Respecto del DER original:
 
-Permite identificar productos que requieren revisión o reposición de existencias.
+- Usuario puede tener cero o un carrito.
+- Producto puede aparecer en cero o muchos detalles de pedido.
+- Pedido conserva uno o más detalles en todos sus estados.
+- Se agrega `stock_descontado` a Pago, de tipo booleano: indica que el sistema descontó las existencias y todavía no las repuso. El modelo final tiene 47 atributos conceptuales.
 
-- **Filtros:** umbral de stock, inicialmente 5, y categoría opcional.
-- **Información:** producto, categoría, vendedor, stock y precio.
-- **Resumen:** cantidad de productos encontrados y valor del inventario disponible, calculado como precio por stock.
+La migración `ControlDescuentoStock` agrega `Pagos.StockDescontado`, obligatorio y con valor inicial falso. Los cobros nuevos lo activan; las devoluciones lo desactivan. Los pagos del flujo anterior conservan falso: no se descuentan existencias retroactivamente ni se repone stock que el sistema no descontó.
 
-La consulta muestra productos activos cuyo stock sea menor o igual al umbral, ordenados desde la menor cantidad disponible. Los productos agotados, pausados o inactivos no se incluyen.
+Un pedido antiguo marcado como completado sin cobro confirmado puede reabrirse explícitamente desde su pantalla para revisar y confirmar el dinero. Los pedidos antiguos vacíos deben completarse con un detalle o eliminarse como pedidos completos. No se inventan productos ni se reparan registros masivamente.
+
+En `Documentacion` están el DER original, el actualizado, la comparación, una guía de demostración y el script idempotente del esquema. El script SQL se ejecuta sobre una base de datos ya creada; la carga de muestra se hace desde la aplicación con `--inicializar`.

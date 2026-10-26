@@ -20,7 +20,7 @@ namespace MarketPlacePro.Controllers
         {
             var detalles = await _context.DetallesPedido
                 .AsNoTracking()
-                .Include(d => d.Pedido)
+                .Include(d => d.Pedido).ThenInclude(p => p.Pago)
                 .Include(d => d.Producto)
                 .OrderBy(d => d.Id)
                 .ToListAsync();
@@ -35,7 +35,7 @@ namespace MarketPlacePro.Controllers
 
             var detalle = await _context.DetallesPedido
                 .AsNoTracking()
-                .Include(d => d.Pedido)
+                .Include(d => d.Pedido).ThenInclude(p => p.Pago)
                 .Include(d => d.Producto)
                 .FirstOrDefaultAsync(d => d.Id == id);
 
@@ -162,7 +162,7 @@ namespace MarketPlacePro.Controllers
 
             var detalle = await _context.DetallesPedido
                 .AsNoTracking()
-                .Include(d => d.Pedido)
+                .Include(d => d.Pedido).ThenInclude(p => p.Pago)
                 .Include(d => d.Producto)
                 .FirstOrDefaultAsync(d => d.Id == id);
 
@@ -196,6 +196,8 @@ namespace MarketPlacePro.Controllers
         {
             var pedidos = await _context.Pedidos
                 .AsNoTracking()
+                .Where(p => (p.Estado == "pendiente" || p.Estado == "en_proceso") &&
+                    (p.Pago == null || (p.Pago.Estado != "completado" && p.Pago.Estado != "reembolsado")))
                 .OrderBy(p => p.NumeroPedido)
                 .ToListAsync();
 

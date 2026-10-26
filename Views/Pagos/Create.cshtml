@@ -1,76 +1,30 @@
-@model MarketPlacePro.Models.Pago
-
-@{
-    ViewData["Title"] = "Registrar pago";
-}
-
-<h1>Registrar pago</h1>
-
-<hr />
-
-<div class="row">
-    <div class="col-md-6">
-        <form asp-action="Create" method="post">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-
-            <div class="form-group mb-3">
-                <label asp-for="Metodo" class="control-label">Método de pago</label>
-                <input asp-for="Metodo" class="form-control" />
-                <span asp-validation-for="Metodo" class="text-danger"></span>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="Monto" class="control-label">Monto</label>
-                <input asp-for="Monto" class="form-control" type="number" min="0.01" step="0.01" />
-                <span asp-validation-for="Monto" class="text-danger"></span>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="Estado" class="control-label">Estado</label>
-                <select asp-for="Estado" class="form-control">
-                    <option value="pendiente">Pendiente</option>
-                    <option value="completado">Completado</option>
-                    <option value="rechazado">Rechazado</option>
-                    <option value="reembolsado">Reembolsado</option>
-                </select>
-                <span asp-validation-for="Estado" class="text-danger"></span>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="Referencia" class="control-label">Referencia</label>
-                <input asp-for="Referencia" class="form-control" />
-                <span asp-validation-for="Referencia" class="text-danger"></span>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="FechaPago" class="control-label">Fecha de pago</label>
-                <input asp-for="FechaPago" type="datetime-local" class="form-control" max="@DateTime.UtcNow.AddHours(-4).ToString("yyyy-MM-ddT23:59")" />
-                <span asp-validation-for="FechaPago" class="text-danger"></span>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="PedidoId" class="control-label">Pedido</label>
-                <select asp-for="PedidoId" class="form-control" asp-items="ViewBag.PedidoId">
-                    <option value="">Seleccione un pedido</option>
-                </select>
-                <span asp-validation-for="PedidoId" class="text-danger"></span>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Registrar pago</button>
-            @if (Model != null && Model.PedidoId > 0)
-            {
-                <a asp-controller="Pedidos" asp-action="Details" asp-route-id="@Model.PedidoId" class="btn btn-outline-secondary">Volver al pedido</a>
-            }
-            else
-            {
-                <a asp-action="Index" class="btn btn-outline-secondary">Volver al listado</a>
-            }
-        </form>
-    </div>
-</div>
-
-@section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
-}
+@model MarketPlacePro.Models.CobroViewModel
+@{ ViewData["Title"] = "Confirmar cobro"; }
+<div class="eyebrow mb-2">Último paso · Cobro</div>
+<h1>Confirmar cobro</h1>
+<p>Pedido <strong>@Model.NumeroPedido</strong> · @Model.Comprador</p>
+<div class="alert alert-info">Este es un registro manual. Confirma el cobro cuando hayas recibido el efectivo o comprobado el abono en tu cuenta.</div>
+<div class="row"><div class="col-lg-7">
+    <form asp-action="Create" method="post">
+        <input type="hidden" asp-for="PedidoId" />
+        <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+        <div class="border rounded-3 p-3 mb-4"><span>Total a cobrar</span><strong class="d-block fs-3">Bs @Model.Total.ToString("F2")</strong><span class="text-muted">Pago completo, sin abonos parciales.</span></div>
+        <div class="mb-3"><label asp-for="Metodo" class="form-label">Método de pago</label>
+            <select asp-for="Metodo" class="form-select" id="metodo-cobro">
+                <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia bancaria</option><option value="qr">QR</option>
+            </select><span asp-validation-for="Metodo" class="text-danger"></span>
+        </div>
+        <div class="mb-3"><label asp-for="Referencia" class="form-label">Referencia de la operación</label>
+            <input asp-for="Referencia" class="form-control" maxlength="255" id="referencia-cobro" />
+            <div class="form-text">Obligatoria para transferencia y QR. En efectivo es opcional.</div><span asp-validation-for="Referencia" class="text-danger"></span>
+        </div>
+        <div class="form-check mb-4"><input asp-for="ConfirmarRecepcion" class="form-check-input" required />
+            <label asp-for="ConfirmarRecepcion" class="form-check-label">Confirmo que recibí o verifiqué el dinero.</label>
+            <span asp-validation-for="ConfirmarRecepcion" class="text-danger d-block"></span>
+        </div>
+        <p>Al confirmar se completará el pedido y se descontará el stock. Si faltan existencias, no se guardará el cobro.</p>
+        <button type="submit" class="btn btn-primary">Confirmar cobro y finalizar venta</button>
+        <a asp-controller="Pedidos" asp-action="Details" asp-route-id="@Model.PedidoId" class="btn btn-outline-secondary">Volver al pedido</a>
+    </form>
+</div></div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -1,0 +1,3 @@
+@model string
+@{ var ruta = Model != null && (Model.StartsWith("/uploads/") || Model.StartsWith("/images/demo/")) ? Model : "/images/demo/catalogo.svg"; }
+<img src="@ruta" alt="" class="foto-miniatura" loading="lazy" />

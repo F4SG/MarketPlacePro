@@ -12,11 +12,13 @@ namespace MarketPlacePro.Controllers
 {
     public class CategoriasController : Controller
     {
+        private readonly AlmacenImagenes? _imagenes;
         private readonly MarketPlaceProContext _context;
 
-        public CategoriasController(MarketPlaceProContext context)
+        public CategoriasController(MarketPlaceProContext context, AlmacenImagenes? imagenes = null)
         {
             _context = context;
+            _imagenes = imagenes;
         }
 
         // GET: Categorias
@@ -53,13 +55,20 @@ namespace MarketPlacePro.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Nombre,Descripcion,Imagen")] Categoria categoria)
+        [ValidateAntiForgeryToken, RequestSizeLimit(4 * 1024 * 1024)]
+        public async Task<IActionResult> Create([Bind("Nombre,Descripcion")] Categoria categoria, IFormFile? foto = null)
         {
             if (ModelState.IsValid)
             {
-                _context.Add(categoria);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                string? nueva = null;
+                if (await Persistencia.GuardarAsync(this, _context, async () =>
+                {
+                    if (foto != null) nueva = await _imagenes!.GuardarAsync(foto);
+                    categoria.Imagen = nueva ?? "/images/demo/catalogo.svg";
+                    _context.Add(categoria);
+                    await _context.SaveChangesAsync();
+                })) return RedirectToAction(nameof(Index));
+                _imagenes?.EliminarNueva(nueva);
             }
             return View(categoria);
         }
@@ -84,8 +93,8 @@ namespace MarketPlacePro.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(long id, [Bind("Id,Nombre,Descripcion,Imagen")] Categoria categoria)
+        [ValidateAntiForgeryToken, RequestSizeLimit(4 * 1024 * 1024)]
+        public async Task<IActionResult> Edit(long id, [Bind("Id,Nombre,Descripcion")] Categoria categoria, IFormFile? foto = null)
         {
             if (id != categoria.Id)
             {
@@ -94,8 +103,17 @@ namespace MarketPlacePro.Controllers
 
             if (ModelState.IsValid)
             {
-                _context.Update(categoria);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                string? nueva = null;
+                if (await Persistencia.GuardarAsync(this, _context, async () =>
+                {
+                    var anterior = await _context.Categorias.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id)
+                        ?? throw new System.ComponentModel.DataAnnotations.ValidationException("El registro ya no existe.");
+                    if (foto != null) nueva = await _imagenes!.GuardarAsync(foto);
+                    categoria.Imagen = nueva ?? anterior.Imagen;
+                    _context.Update(categoria);
+                    await _context.SaveChangesAsync();
+                })) return RedirectToAction(nameof(Index));
+                _imagenes?.EliminarNueva(nueva);
             }
             return View(categoria);
         }

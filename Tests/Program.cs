@@ -4,8 +4,13 @@ using MarketPlacePro.Controllers;
 using MarketPlacePro.Data;
 using MarketPlacePro.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+
+if (args.Contains("--web")) { await WebSmoke.RunAsync(); return; }
 
 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
 var passed = 0;
@@ -98,6 +103,7 @@ await Check("Ventas incluye ambos extremos del día boliviano y distingue produc
     {
         var p = new Pedido { NumeroPedido = $"VENTA-{i}", UsuarioId = 1, Estado = "completada", FechaPedido = fechas[i] };
         db.Pedidos.Add(p); await db.SaveChangesAsync();
+        db.Pagos.Add(new Pago { PedidoId = p.Id, Metodo = "efectivo", Estado = "completado", Monto = i == 2 ? 40 : 10, FechaPago = fechas[i] });
         db.DetallesPedido.Add(new DetallePedido { PedidoId = p.Id, ProductoId = i == 2 ? 2 : 1,
             NombreProducto = "Mismo nombre", PrecioUnitario = i == 2 ? 20 : 10, Cantidad = i == 2 ? 2 : 1,
             Subtotal = i == 2 ? 40 : 10 });
@@ -232,13 +238,15 @@ await Check("Un pedido vacío anterior no puede marcarse completado", async () =
         is ViewResult && !c.ModelState.IsValid, "Se completó un pedido vacío.");
     db.ChangeTracker.Clear(); Assert((await db.Pedidos.FindAsync(1L))!.Estado == "pendiente", "Se cambió el estado.");
 });
-await Check("Un pedido válido sí puede completarse", async () =>
+await Check("Un pedido solo se completa al confirmar el cobro", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
     var c = new PedidosController(db);
     Assert(await c.Edit(1, new Pedido { Id = 1, NumeroPedido = "PED-1", UsuarioId = 1, Estado = "completada" })
-        is RedirectToActionResult, "No pudo completarse el pedido válido.");
-    db.ChangeTracker.Clear(); Assert((await db.Pedidos.FindAsync(1L))!.Estado == "completada", "No se guardó el estado.");
+        is ViewResult && !c.ModelState.IsValid, "Permitió completar manualmente sin cobrar.");
+    db.ChangeTracker.Clear();
+    await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); db.ChangeTracker.Clear();
+    Assert((await db.Pedidos.FindAsync(1L))!.Estado == "completada", "No se completó al cobrar.");
 });
 await Check("Editar pedido no permite alterar manualmente los importes", async () =>
 {
@@ -352,18 +360,16 @@ await Check("Importe excesivo no crea pedido ni vacía el carrito", async () =>
     db.ChangeTracker.Clear();
     Assert(await db.Pedidos.CountAsync() == 2 && await db.DetallesCarrito.CountAsync() == 1, "Se perdieron productos.");
 });
-await Check("Pago desde pedido precarga importe y evita un segundo pago", async () =>
+await Check("Cobro desde pedido precarga total y no ofrece editar una venta cerrada", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
     var c = new PagosController(db);
     var result = (ViewResult)await c.Create(pedidoId: 1);
-    var pago = (Pago)result.Model!;
-    Assert(pago.PedidoId == 1 && pago.Monto == 20, "Pago sin importe o pedido seleccionado.");
-    db.Pagos.Add(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 });
-    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-    Assert(await c.Create(pedidoId: 1) is RedirectToActionResult { ActionName: "Edit" }, "Permitió otro formulario de pago.");
+    var pago = (CobroViewModel)result.Model!;
+    Assert(pago.PedidoId == 1 && pago.Total == 20, "Cobro sin importe calculado.");
+    await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); db.ChangeTracker.Clear();
+    Assert(await c.Create(pedidoId: 1) is RedirectToActionResult { ActionName: "Details" }, "Permitió volver a cobrar desde el formulario.");
 });
-
 await Check("Error al guardar la compra revierte el vaciado del carrito", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db;
@@ -441,14 +447,6 @@ await Check("Correo duplicado se rechaza aunque cambien las mayúsculas", async 
         is ViewResult && !c.ModelState.IsValid, "Se aceptó el correo duplicado.");
     Assert(await db.Usuarios.CountAsync() == 3, "Se persistió el duplicado.");
 });
-await Check("Datos generados cumplen las validaciones de usuario y precisión monetaria", () =>
-{
-    foreach (var u in new UsuarioFaker().Generate(50))
-        Assert(Validator.TryValidateObject(u, new ValidationContext(u), [], true), "El generador creó un usuario inválido.");
-    foreach (var p in new ProductoFaker(new long[] { 2 }, new long[] { 1 }).Generate(50))
-        Assert(decimal.Round(p.Precio, 2) == p.Precio, "Precio generado con más de dos decimales.");
-    return Task.CompletedTask;
-});
 await Check("No agrega productos inactivos a carrito ni a pedido", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db;
@@ -473,24 +471,198 @@ await Check("No permite agregar productos a carritos abandonados", async () =>
         is ViewResult && !c.ModelState.IsValid, "Aceptó el carrito abandonado.");
     Assert(!await db.DetallesCarrito.AnyAsync(), "Guardó el detalle inválido.");
 });
-await Check("Pagos rechazan pedidos vacíos, cancelados y fechas futuras", async () =>
+await Check("Cobro descuenta stock una vez y devuelve existencias una sola vez", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db, cantidad: 5);
+    await Ventas.ConfirmarCobroAsync(db, 1, "qr", "REF-001"); db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 0 && (await db.Productos.FindAsync(1L))!.Estado == "agotado", "Stock o estado incorrectos.");
+    var pago = await db.Pagos.SingleAsync();
+    Assert(pago.Monto == 50 && pago.Estado == "completado" && (await db.Pedidos.FindAsync(1L))!.Estado == "completada", "Venta incoherente.");
+    db.ChangeTracker.Clear(); await Ventas.ConfirmarCobroAsync(db, 1, "qr", "REF-001"); db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 0 && await db.Pagos.CountAsync() == 1, "Descuento o pago duplicado.");
+    await Ventas.DevolverAsync(db, 1); db.ChangeTracker.Clear();
+    await Ventas.DevolverAsync(db, 1); db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 5 && (await db.Productos.FindAsync(1L))!.Estado == "activo"
+        && (await db.Pagos.SingleAsync()).Estado == "reembolsado" && (await db.Pedidos.FindAsync(1L))!.Estado == "cancelada", "Devolución duplicada o incompleta.");
+});
+await Check("Stock insuficiente revierte todos los productos y no cobra", async () =>
 {
     await using var f = await Fixture.Create(); var db = f.Db;
+    await AddDetail(db, producto: 1, cantidad: 2); await AddDetail(db, producto: 2, cantidad: 6);
+    try { await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); throw new Exception("Cobró sin existencias."); }
+    catch (ValidationException) { }
+    db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 5 && (await db.Productos.FindAsync(2L))!.Stock == 5
+        && !await db.Pagos.AnyAsync() && (await db.Pedidos.FindAsync(1L))!.Estado == "pendiente", "Cambios parciales en el cobro.");
+});
+await Check("Error de persistencia al cobrar revierte el descuento de stock", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER FallarPago BEFORE INSERT ON Pagos BEGIN SELECT RAISE(ABORT, 'Fallo de prueba'); END;");
+    try { await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); throw new Exception("Faltó el fallo."); }
+    catch (DbUpdateException) { }
+    db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 5 && !await db.Pagos.AnyAsync()
+        && (await db.Pedidos.FindAsync(1L))!.Estado == "pendiente", "Se descontó sin cobrar.");
+});
+await Check("Los cobros requieren referencia y no permiten métodos arbitrarios", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    foreach (var metodo in new[] { "qr", "transferencia", "inventado" })
+    {
+        try { await Ventas.ConfirmarCobroAsync(db, 1, metodo, null); throw new Exception("Aceptó el método sin validar."); }
+        catch (ValidationException) { }
+    }
+    Assert(!await db.Pagos.AnyAsync(), "Guardó un cobro inválido.");
     var c = new PagosController(db);
-    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 })
-        is ViewResult && !c.ModelState.IsValid, "Aceptó un pedido vacío.");
-    await AddDetail(db);
-    (await db.Pedidos.FindAsync(1L))!.Estado = "cancelada";
+    Assert(await c.Create(new CobroViewModel { PedidoId = 1, Metodo = "efectivo", ConfirmarRecepcion = false }) is ViewResult
+        && !c.ModelState.IsValid, "No exigió confirmar la recepción del dinero.");
+});
+await Check("Cancelación sin cobro no toca stock y bloquea cobros posteriores", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    await Ventas.CancelarAsync(db, 1); db.ChangeTracker.Clear();
+    try { await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); throw new Exception("Cobró pedido cancelado."); }
+    catch (ValidationException) { }
+    db.ChangeTracker.Clear(); Assert((await db.Productos.FindAsync(1L))!.Stock == 5 && !await db.Pagos.AnyAsync(), "Stock alterado al cancelar.");
+});
+await Check("Pedido vacío no puede cobrarse", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    try { await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); throw new Exception("Cobró pedido vacío."); }
+    catch (ValidationException) { }
+});
+await Check("Ventas cerradas no permiten editar, agregar, mover ni borrar detalles o pedido", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); db.ChangeTracker.Clear();
+    var id = await db.DetallesPedido.Select(d => d.Id).SingleAsync();
+    var detalle = new DetallePedidosController(db);
+    Assert(await detalle.Create(new DetallePedido { PedidoId = 1, ProductoId = 2, Cantidad = 1 }) is ViewResult && !detalle.ModelState.IsValid, "Agregó a venta cerrada.");
+    db.ChangeTracker.Clear(); detalle = new DetallePedidosController(db);
+    Assert(await detalle.Edit(id, new DetallePedido { Id = id, PedidoId = 2, ProductoId = 1, Cantidad = 1 }) is ViewResult && !detalle.ModelState.IsValid, "Trasladó un detalle cobrado.");
+    db.ChangeTracker.Clear(); detalle = new DetallePedidosController(db);
+    Assert(await detalle.DeleteConfirmed(id) is ViewResult && !detalle.ModelState.IsValid, "Eliminó detalle cobrado.");
+    db.ChangeTracker.Clear(); var pedido = new PedidosController(db);
+    Assert(await pedido.Edit(1, new Pedido { Id = 1, NumeroPedido = "OTRO", UsuarioId = 3 }) is ViewResult && !pedido.ModelState.IsValid, "Editó venta cerrada.");
+    db.ChangeTracker.Clear(); pedido = new PedidosController(db);
+    Assert(await pedido.DeleteConfirmed(1) is ViewResult && !pedido.ModelState.IsValid, "Eliminó venta cerrada.");
+    db.ChangeTracker.Clear(); Assert((await db.Pedidos.FindAsync(1L))!.NumeroPedido == "PED-1" && (await db.Productos.FindAsync(1L))!.Stock == 3, "Se alteró el historial o las existencias.");
+});
+await Check("Un pago pendiente se confirma actualizando el mismo registro", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    var pago = new Pago { PedidoId = 1, Metodo = "qr", Monto = 20, Estado = "pendiente", Referencia = "ANTERIOR" };
+    db.Pagos.Add(pago); await db.SaveChangesAsync(); var id = pago.Id; db.ChangeTracker.Clear();
+    await Ventas.ConfirmarCobroAsync(db, 1, "transferencia", "REF-NUEVA"); db.ChangeTracker.Clear();
+    pago = await db.Pagos.SingleAsync();
+    Assert(pago.Id == id && pago.Monto == 20 && pago.Estado == "completado" && pago.Referencia == "REF-NUEVA", "Duplicó o no confirmó el pago.");
+});
+await Check("Umbral de stock incluye agotados y excluye pausados", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    (await db.Productos.FindAsync(1L))!.Stock = 0; (await db.Productos.FindAsync(1L))!.Estado = "agotado";
+    (await db.Productos.FindAsync(2L))!.Estado = "pausado";
     await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-    c = new PagosController(db);
-    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 })
-        is ViewResult && !c.ModelState.IsValid, "Aceptó un pedido cancelado.");
-    (await db.Pedidos.FindAsync(1L))!.Estado = "pendiente";
+    var m = (ReporteStockViewModel)((ViewResult)await new ReportesController(db).ProductosBajoStock()).Model!;
+    Assert(m.Filas.Count == 1 && m.Filas[0].Stock == 0 && m.Umbral == 5, "Agotados o umbral incorrectos.");
+});
+await Check("Población de demostración es completa, coherente e idempotente", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    await MarketPlaceSeeder.InicializarAsync(db); db.ChangeTracker.Clear();
+    var counts = new[] { await db.Usuarios.CountAsync(), await db.Productos.CountAsync(), await db.Pedidos.CountAsync(), await db.Pagos.CountAsync(), await db.Carritos.CountAsync() };
+    await MarketPlaceSeeder.InicializarAsync(db); db.ChangeTracker.Clear();
+    var despues = new[] { await db.Usuarios.CountAsync(), await db.Productos.CountAsync(), await db.Pedidos.CountAsync(), await db.Pagos.CountAsync(), await db.Carritos.CountAsync() };
+    Assert(counts.SequenceEqual(despues), "Duplicó la demostración.");
+    Assert(await db.Usuarios.CountAsync(u => u.Correo.EndsWith(".demo@marketplace.example.invalid")) == 6, "Faltan usuarios de muestra.");
+    var pedidos = await db.Pedidos.Include(p => p.Detalles).Include(p => p.Pago).Where(p => p.NumeroPedido.StartsWith("DEMO-")).ToListAsync();
+    Assert(pedidos.Count == 5 && pedidos.All(p => p.Detalles.Count > 0 && p.Total == p.Detalles.Sum(d => d.PrecioUnitario * d.Cantidad)), "Pedidos de muestra incoherentes.");
+    Assert(pedidos.Count(p => p.Estado == "completada" && p.Pago!.Estado == "completado") == 2, "Faltan ventas cobradas.");
+    Assert(await db.Productos.AnyAsync(p => p.Estado == "agotado" && p.Stock == 0), "Falta producto agotado.");
+    Assert(!await db.Productos.AnyAsync(p => p.Stock < 0 || p.Estado == "agotado" && p.Stock != 0), "Inventario incoherente.");
+});
+await Check("Fotos rechazan contenido inválido y admiten PNG con ruta segura", async () =>
+{
+    var carpeta = Path.Combine(Path.GetTempPath(), "marketplace-fotos-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var almacen = new AlmacenImagenes(new EntornoPrueba(carpeta));
+        var contenido = System.Text.Encoding.UTF8.GetBytes("<script>alert(1)</script>");
+        var falso = new FormFile(new MemoryStream(contenido), 0, contenido.Length, "foto", "falso.png");
+        try { await almacen.GuardarAsync(falso); throw new Exception("Aceptó una foto falsa."); } catch (ValidationException) { }
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=");
+        var foto = new FormFile(new MemoryStream(png), 0, png.Length, "foto", "../../foto.png");
+        var ruta = await almacen.GuardarAsync(foto);
+        Assert(ruta.StartsWith("/uploads/") && !ruta.Contains("..") && File.Exists(Path.Combine(carpeta, ruta.TrimStart('/'))), "Ruta de foto insegura.");
+        almacen.EliminarNueva(ruta); Assert(!File.Exists(Path.Combine(carpeta, ruta.TrimStart('/'))), "No revirtió la foto nueva.");
+    }
+    finally { if (Directory.Exists(carpeta)) Directory.Delete(carpeta, true); }
+});
+
+await Check("Devolución de pago antiguo no repone stock que nunca se descontó", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    (await db.Pedidos.FindAsync(1L))!.Estado = "completada";
+    db.Pagos.Add(new Pago { PedidoId = 1, Estado = "completado", Metodo = "efectivo", Monto = 20, StockDescontado = false });
     await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-    c = new PagosController(db);
-    Assert(await c.Create(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20, FechaPago = DateTime.UtcNow.AddDays(2) })
-        is ViewResult && c.ModelState.ContainsKey("FechaPago"), "Aceptó una fecha futura.");
-    Assert(!await db.Pagos.AnyAsync(), "Se persistió un pago inválido.");
+    await Ventas.DevolverAsync(db, 1); db.ChangeTracker.Clear();
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 5 && (await db.Pagos.SingleAsync()).Estado == "reembolsado", "Infló stock de un pago antiguo.");
+});
+await Check("Pedido antiguo completado sin pago se reabre sin modificar stock", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    (await db.Pedidos.FindAsync(1L))!.Estado = "completada";
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await Ventas.ReabrirPendienteAsync(db, 1); db.ChangeTracker.Clear();
+    Assert((await db.Pedidos.FindAsync(1L))!.Estado == "pendiente" && (await db.Productos.FindAsync(1L))!.Stock == 5, "Reapertura incoherente.");
+    await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); db.ChangeTracker.Clear();
+    try { await Ventas.ReabrirPendienteAsync(db, 1); throw new Exception("Reabrió una venta cobrada."); } catch (ValidationException) { }
+});
+await Check("Formulario de inventario desactualizado no pisa el stock de una venta", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    await Ventas.ConfirmarCobroAsync(db, 1, "efectivo", null); db.ChangeTracker.Clear();
+    var c = new ProductosController(db);
+    Assert(await c.Edit(1, new Producto { Id = 1, Nombre = "Mismo nombre", Precio = 10, Stock = 9, Estado = "activo", UsuarioId = 2, CategoriaId = 1 }, stockAnterior: 5)
+        is ViewResult && !c.ModelState.IsValid, "Sobrescribió existencias con un formulario antiguo.");
+    db.ChangeTracker.Clear(); Assert((await db.Productos.FindAsync(1L))!.Stock == 3, "Se perdieron los cambios de la venta.");
+});
+
+await Check("Dos compras compiten por la última unidad sin sobreventa", async () =>
+{
+    var archivo = Path.Combine(Path.GetTempPath(), "marketplace-carrera-" + Guid.NewGuid().ToString("N") + ".db");
+    var options = new DbContextOptionsBuilder<MarketPlaceProContext>().UseSqlite("Data Source=" + archivo + ";Pooling=False;Default Timeout=10").Options;
+    try
+    {
+        await using (var f = await Fixture.Create())
+        await using (var destino = new SqliteConnection("Data Source=" + archivo + ";Pooling=False"))
+        {
+            await destino.OpenAsync(); ((SqliteConnection)f.Db.Database.GetDbConnection()).BackupDatabase(destino);
+        }
+        await using (var db = new MarketPlaceProContext(options))
+        {
+            (await db.Productos.FindAsync(1L))!.Stock = 1;
+            foreach (var id in new long[] { 1, 2 })
+            {
+                var p = await db.Pedidos.FindAsync(id); p!.Total = p.Subtotal = 10;
+                db.DetallesPedido.Add(new DetallePedido { PedidoId = id, ProductoId = 1, NombreProducto = "Última unidad", PrecioUnitario = 10, Cantidad = 1, Subtotal = 10 });
+            }
+            await db.SaveChangesAsync();
+        }
+        async Task<bool> Cobrar(long id)
+        {
+            await using var db = new MarketPlaceProContext(options);
+            try { await Ventas.ConfirmarCobroAsync(db, id, "efectivo", null); return true; }
+            catch (ValidationException) { return false; }
+            catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6) { return false; }
+        }
+        var resultados = await Task.WhenAll(Task.Run(() => Cobrar(1)), Task.Run(() => Cobrar(2)));
+        await using var verificar = new MarketPlaceProContext(options);
+        Assert(resultados.Count(x => x) == 1 && (await verificar.Productos.FindAsync(1L))!.Stock == 0
+            && await verificar.Pagos.CountAsync() == 1, "Las dos compras consumieron la misma unidad.");
+    }
+    finally { if (File.Exists(archivo)) File.Delete(archivo); }
 });
 
 Console.WriteLine($"Resultado: {passed} correctas, {failures.Count} fallidas.");
@@ -517,4 +689,15 @@ sealed class Fixture : IAsyncDisposable
         await db.SaveChangesAsync(); db.ChangeTracker.Clear(); return new Fixture(c, db);
     }
     public async ValueTask DisposeAsync() { await Db.DisposeAsync(); await connection.DisposeAsync(); }
+}
+
+sealed class EntornoPrueba : IWebHostEnvironment
+{
+    public EntornoPrueba(string ruta) { WebRootPath = ruta; ContentRootPath = ruta; }
+    public string ApplicationName { get; set; } = "MarketPlacePro";
+    public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+    public string WebRootPath { get; set; }
+    public string EnvironmentName { get; set; } = "Development";
+    public string ContentRootPath { get; set; }
+    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
 }

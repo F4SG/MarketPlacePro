@@ -21,6 +21,10 @@ internal static class Persistencia
         {
             controller.ModelState.AddModelError(string.Empty, ex.Message);
         }
+        catch (SqlException ex) when (ex.Number == 1205)
+        {
+            controller.ModelState.AddModelError(string.Empty, "Otra operación actualizó estas existencias. Vuelve al pedido e intenta confirmar nuevamente.");
+        }
         catch (DbUpdateConcurrencyException)
         {
             controller.ModelState.AddModelError(string.Empty, "El registro cambió o ya no existe. Vuelva al listado e intente nuevamente.");
@@ -33,6 +37,7 @@ internal static class Persistencia
         {
             controller.ModelState.AddModelError(string.Empty, "No se puede guardar la operación porque existen registros relacionados o un valor no permitido.");
         }
+        context.ChangeTracker.Clear();
         return false;
     }
 }

@@ -10,7 +10,7 @@
 <hr />
 <div class="row">
     <div class="col-md-4">
-        <form asp-action="Create">
+        <form asp-action="Create" method="post" enctype="multipart/form-data">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="form-group">
                 <label asp-for="Nombre" class="control-label"></label>
@@ -34,24 +34,21 @@
             </div>
             <div class="form-group">
                 <label asp-for="Imagen" class="control-label"></label>
-                <input asp-for="Imagen" class="form-control" />
+                <partial name="_Foto" model="Model?.Imagen" />
+                <input type="file" name="foto" id="Imagen" class="form-control mt-2" accept=".jpg,.jpeg,.png,.webp" data-foto />
+                <div class="form-text">PNG, JPG o WebP, hasta 3 MB. Sin adjunto se conserva la imagen actual.</div>
                 <span asp-validation-for="Imagen" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="Estado" class="control-label"></label>
                 <select asp-for="Estado" class="form-control">
-                    <option value="activo">Activo</option>
-                    <option value="agotado">Agotado</option>
+                    <option value="activo">A la venta (agotado si stock es cero)</option>
                     <option value="pausado">Pausado</option>
                     <option value="inactivo">Inactivo</option>
                 </select>
                 <span asp-validation-for="Estado" class="text-danger"></span>
             </div>
-            <div class="form-group">
-                <label asp-for="FechaPublicacion" class="control-label">Fecha de publicación</label>
-                <input asp-for="FechaPublicacion" class="form-control" />
-                <span asp-validation-for="FechaPublicacion" class="text-danger"></span>
-            </div>
+
             <div class="form-group">
                 <label asp-for="UsuarioId" class="control-label">Vendedor</label>
                 <select asp-for="UsuarioId" asp-items="ViewBag.UsuarioId" class="form-control">

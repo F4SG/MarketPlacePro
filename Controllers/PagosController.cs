@@ -1,246 +1,60 @@
-
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
 using MarketPlacePro.Data;
 using MarketPlacePro.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-namespace MarketPlacePro.Controllers
+namespace MarketPlacePro.Controllers;
+
+public class PagosController : Controller
 {
-    public class PagosController : Controller
+    private readonly MarketPlaceProContext _context;
+    public PagosController(MarketPlaceProContext context) => _context = context;
+
+    public async Task<IActionResult> Index() => View(await _context.Pagos.AsNoTracking().Include(p => p.Pedido)
+        .OrderByDescending(p => p.FechaPago).ToListAsync());
+
+    public async Task<IActionResult> Details(long? id)
     {
-        private readonly MarketPlaceProContext _context;
+        var pago = await _context.Pagos.AsNoTracking().Include(p => p.Pedido).SingleOrDefaultAsync(p => p.Id == id);
+        return pago == null ? NotFound() : View(pago);
+    }
 
-        private static readonly string[] EstadosPermitidos =
-        {
-            "pendiente",
-            "completado",
-            "rechazado",
-            "reembolsado"
-        };
+    public async Task<IActionResult> Create(long? pedidoId = null)
+    {
+        if (!pedidoId.HasValue) return RedirectToAction("Index", "Pedidos");
+        var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Comprador).Include(p => p.Pago)
+            .SingleOrDefaultAsync(p => p.Id == pedidoId);
+        if (pedido == null) return NotFound();
+        if (!Ventas.EstaAbierto(pedido)) return RedirectToAction("Details", "Pedidos", new { id = pedido.Id });
+        return View(new CobroViewModel { PedidoId = pedido.Id, NumeroPedido = pedido.NumeroPedido,
+            Total = pedido.Total, Comprador = pedido.Comprador.Nombre });
+    }
 
-        public PagosController(MarketPlaceProContext context)
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create([Bind("PedidoId,Metodo,Referencia,ConfirmarRecepcion")] CobroViewModel formulario)
+    {
+        if (!formulario.ConfirmarRecepcion)
+            ModelState.AddModelError(nameof(formulario.ConfirmarRecepcion), "Confirma que recibiste o verificaste el dinero.");
+        if (formulario.Metodo != "efectivo" && string.IsNullOrWhiteSpace(formulario.Referencia))
+            ModelState.AddModelError(nameof(formulario.Referencia), "Ingrese la referencia de la transferencia o del pago QR.");
+        if (ModelState.IsValid && await Persistencia.GuardarAsync(this, _context,
+            () => Ventas.ConfirmarCobroAsync(_context, formulario.PedidoId, formulario.Metodo, formulario.Referencia)))
         {
-            _context = context;
+            TempData["Exito"] = "Venta finalizada: pago confirmado, pedido completado y stock actualizado.";
+            return RedirectToAction("Details", "Pedidos", new { id = formulario.PedidoId });
         }
+        var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Comprador).SingleOrDefaultAsync(p => p.Id == formulario.PedidoId);
+        if (pedido == null) return NotFound();
+        formulario.Total = pedido.Total; formulario.NumeroPedido = pedido.NumeroPedido; formulario.Comprador = pedido.Comprador.Nombre;
+        return View(formulario);
+    }
 
-        public async Task<IActionResult> Index()
-        {
-            var pagos = await _context.Pagos
-                .AsNoTracking()
-                .Include(p => p.Pedido)
-                .OrderByDescending(p => p.FechaPago)
-                .ToListAsync();
-
-            return View(pagos);
-        }
-
-        public async Task<IActionResult> Details(long? id)
-        {
-            if (id == null)
-                return NotFound();
-
-            var pago = await _context.Pagos
-                .AsNoTracking()
-                .Include(p => p.Pedido)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (pago == null)
-                return NotFound();
-
-            return View(pago);
-        }
-
-        public async Task<IActionResult> Create(long? pedidoId = null)
-        {
-            var pago = new Pago { FechaPago = DateTime.UtcNow.AddHours(-4), Estado = "pendiente" };
-            if (pedidoId.HasValue)
-            {
-                var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Pago)
-                    .SingleOrDefaultAsync(p => p.Id == pedidoId);
-                if (pedido == null) return NotFound();
-                if (pedido.Pago != null)
-                    return RedirectToAction(nameof(Edit), new { id = pedido.Pago.Id });
-                pago.PedidoId = pedido.Id;
-                pago.Monto = pedido.Total;
-            }
-            await CargarPedidos(pedidoId);
-            return View(pago);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Metodo,Monto,Estado,Referencia,FechaPago,PedidoId")] Pago pago)
-        {
-            ValidarPago(pago);
-
-            var pedido = await _context.Pedidos
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == pago.PedidoId);
-
-            if (pedido == null)
-            {
-                ModelState.AddModelError(nameof(pago.PedidoId), "El pedido seleccionado no existe.");
-            }
-            else if (await _context.Pagos.AnyAsync(p => p.PedidoId == pago.PedidoId))
-            {
-                ModelState.AddModelError(nameof(pago.PedidoId), "Este pedido ya tiene un pago registrado.");
-            }
-
-            if (pedido != null && (pedido.Estado == "cancelada" ||
-                !await _context.DetallesPedido.AnyAsync(d => d.PedidoId == pedido.Id)))
-                ModelState.AddModelError(nameof(pago.PedidoId), "Seleccione un pedido con productos que no esté cancelado.");
-
-            if (ModelState.IsValid)
-            {
-                pago.Metodo = pago.Metodo.Trim();
-                pago.Estado = pago.Estado.Trim().ToLowerInvariant();
-
-                if (string.IsNullOrWhiteSpace(pago.Referencia))
-                    pago.Referencia = null;
-                else
-                    pago.Referencia = pago.Referencia.Trim();
-
-                if (pago.FechaPago == default)
-                    pago.FechaPago = DateTime.UtcNow.AddHours(-4);
-
-                _context.Pagos.Add(pago);
-                if (await Persistencia.GuardarAsync(this, _context))
-                    return RedirectToAction("Details", "Pedidos", new { id = pago.PedidoId });
-            }
-
-            await CargarPedidos(pago.PedidoId);
-            return View(pago);
-        }
-
-        public async Task<IActionResult> Edit(long? id)
-        {
-            if (id == null)
-                return NotFound();
-
-            var pago = await _context.Pagos.FindAsync(id);
-
-            if (pago == null)
-                return NotFound();
-
-            await CargarPedidos(pago.PedidoId, pago.Id);
-            return View(pago);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(long id, [Bind("Id,Metodo,Monto,Estado,Referencia,FechaPago,PedidoId")] Pago pago)
-        {
-            if (id != pago.Id)
-                return NotFound();
-
-            var pagoExistente = await _context.Pagos.FindAsync(id);
-
-            if (pagoExistente == null)
-                return NotFound();
-
-            ValidarPago(pago);
-
-            var pedido = await _context.Pedidos
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == pago.PedidoId);
-
-            if (pedido == null)
-            {
-                ModelState.AddModelError(nameof(pago.PedidoId), "El pedido seleccionado no existe.");
-            }
-            else if (await _context.Pagos.AnyAsync(p => p.PedidoId == pago.PedidoId && p.Id != pago.Id))
-            {
-                ModelState.AddModelError(nameof(pago.PedidoId), "Este pedido ya tiene otro pago registrado.");
-            }
-
-            if (pedido != null && pagoExistente.PedidoId != pago.PedidoId &&
-                (pedido.Estado == "cancelada" || !await _context.DetallesPedido.AnyAsync(d => d.PedidoId == pedido.Id)))
-                ModelState.AddModelError(nameof(pago.PedidoId), "Seleccione un pedido con productos que no esté cancelado.");
-
-            if (ModelState.IsValid)
-            {
-                pagoExistente.Metodo = pago.Metodo.Trim();
-                pagoExistente.Monto = pago.Monto;
-                pagoExistente.Estado = pago.Estado.Trim().ToLowerInvariant();
-                pagoExistente.Referencia = string.IsNullOrWhiteSpace(pago.Referencia)
-                    ? null
-                    : pago.Referencia.Trim();
-                pagoExistente.FechaPago = pago.FechaPago == default
-                    ? pagoExistente.FechaPago
-                    : pago.FechaPago;
-                pagoExistente.PedidoId = pago.PedidoId;
-
-                if (await Persistencia.GuardarAsync(this, _context))
-                    return RedirectToAction("Details", "Pedidos", new { id = pago.PedidoId });
-            }
-
-            await CargarPedidos(pago.PedidoId, pago.Id);
-            return View(pago);
-        }
-
-        public async Task<IActionResult> Delete(long? id)
-        {
-            if (id == null)
-                return NotFound();
-
-            var pago = await _context.Pagos
-                .AsNoTracking()
-                .Include(p => p.Pedido)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (pago == null)
-                return NotFound();
-
-            return View(pago);
-        }
-
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(long id)
-        {
-            var pago = await _context.Pagos.FindAsync(id);
-
-            if (pago != null)
-            {
-                _context.Pagos.Remove(pago);
-                await _context.SaveChangesAsync();
-            }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        private void ValidarPago(Pago pago)
-        {
-            if (string.IsNullOrWhiteSpace(pago.Metodo))
-                ModelState.AddModelError(nameof(pago.Metodo), "El método de pago es obligatorio.");
-
-            if (pago.FechaPago.Date > DateTime.UtcNow.AddHours(-4).Date)
-                ModelState.AddModelError(nameof(pago.FechaPago), "La fecha de pago no puede ser posterior a hoy.");
-
-            if (pago.Monto <= 0)
-                ModelState.AddModelError(nameof(pago.Monto), "El monto debe ser mayor que cero.");
-
-            if (string.IsNullOrWhiteSpace(pago.Estado) ||
-                !EstadosPermitidos.Contains(pago.Estado.Trim().ToLowerInvariant()))
-            {
-                ModelState.AddModelError(nameof(pago.Estado), "El estado seleccionado no es válido.");
-            }
-        }
-
-        private async Task CargarPedidos(long? pedidoId = null, long? pagoId = null)
-        {
-            var pedidos = await _context.Pedidos
-                .AsNoTracking()
-                .Where(p => (p.Estado != "cancelada" && p.Detalles.Any()) ||
-                    (pagoId.HasValue && p.Pago != null && p.Pago.Id == pagoId.Value))
-                .Where(p => !_context.Pagos.Any(pg =>
-                    pg.PedidoId == p.Id &&
-                    (!pagoId.HasValue || pg.Id != pagoId.Value)))
-                .OrderBy(p => p.NumeroPedido)
-                .ToListAsync();
-
-            ViewData["PedidoId"] = new SelectList(pedidos, "Id", "NumeroPedido", pedidoId);
-        }
+    public async Task<IActionResult> Edit(long? id)
+    {
+        var pago = await _context.Pagos.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id);
+        if (pago == null) return NotFound();
+        return pago.Estado is "completado" or "reembolsado"
+            ? RedirectToAction(nameof(Details), new { id = pago.Id })
+            : RedirectToAction(nameof(Create), new { pedidoId = pago.PedidoId });
     }
 }

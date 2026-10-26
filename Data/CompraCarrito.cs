@@ -17,12 +17,12 @@ public static class CompraCarrito
             throw new ValidationException("Solo se puede crear un pedido desde un carrito activo.");
         if (carrito.Detalles.Count == 0)
             throw new ValidationException("Agrega al menos un producto antes de crear el pedido.");
-        if (carrito.Detalles.Any(d => d.Cantidad <= 0 || d.Producto.Estado != "activo" || d.Producto.Precio <= 0))
-            throw new ValidationException("Revisa las cantidades y retira los productos que ya no están activos.");
+        if (carrito.Detalles.Any(d => d.Cantidad <= 0 || d.Producto.Estado != "activo" || d.Producto.Precio <= 0 || d.Cantidad > d.Producto.Stock))
+            throw new ValidationException("Revisa las cantidades, las existencias y los productos que ya no están activos.");
 
         var pedido = new Pedido
         {
-            NumeroPedido = "PED-" + Guid.NewGuid().ToString("N"),
+            NumeroPedido = "PED-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
             UsuarioId = carrito.UsuarioId,
             FechaPedido = DateTime.UtcNow,
             Estado = "pendiente",

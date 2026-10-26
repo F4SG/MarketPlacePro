@@ -151,6 +151,7 @@ public class MarketPlaceProContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Metodo).HasMaxLength(100).IsRequired();
             e.Property(x => x.Monto).HasPrecision(10, 2);
+            e.Property(x => x.StockDescontado).HasDefaultValue(false);
             e.Property(x => x.Estado).HasMaxLength(20).IsRequired();
             e.Property(x => x.Referencia).HasMaxLength(255);
 

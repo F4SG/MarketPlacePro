@@ -1,3 +1,4 @@
+@using MarketPlacePro.Data
 @model IEnumerable<MarketPlacePro.Models.Pedido>
 
 @{
@@ -34,9 +35,9 @@
                     <td>@item.FechaPedido</td>
                     <td>@(item.Comprador?.Nombre ?? "Sin comprador")</td>
                     <td>
-                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Editar</a>
+                        @if (Ventas.EstaAbierto(item)) { <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Editar</a> }
                         <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Abrir</a>
-                        <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-outline-danger">Eliminar</a>
+                        @if (item.Estado != "completada" && item.Pago?.Estado is not ("completado" or "reembolsado")) { <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-outline-danger">Eliminar</a> }
                     </td>
                 </tr>
             }

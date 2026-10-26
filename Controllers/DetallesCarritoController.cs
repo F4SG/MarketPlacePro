@@ -87,6 +87,8 @@ namespace MarketPlacePro.Controllers
             {
                 ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Seleccione un producto activo.");
             }
+            else if (await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId && p.Stock < detalleCarrito.Cantidad))
+                ModelState.AddModelError(nameof(DetalleCarrito.Cantidad), "La cantidad supera el stock disponible.");
             else if (await _context.DetallesCarrito.AnyAsync(d => d.CarritoId == detalleCarrito.CarritoId && d.ProductoId == detalleCarrito.ProductoId))
             {
                 ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Ese producto ya está en el carrito.");
@@ -142,6 +144,8 @@ namespace MarketPlacePro.Controllers
             {
                 ModelState.AddModelError(nameof(DetalleCarrito.ProductoId), "Seleccione un producto activo.");
             }
+            else if (await _context.Productos.AnyAsync(p => p.Id == detalleCarrito.ProductoId && p.Stock < detalleCarrito.Cantidad))
+                ModelState.AddModelError(nameof(DetalleCarrito.Cantidad), "La cantidad supera el stock disponible.");
 
             if (await _context.DetallesCarrito.AnyAsync(d => d.CarritoId == detalleCarrito.CarritoId &&
                 d.ProductoId == detalleCarrito.ProductoId && d.Id != id))
