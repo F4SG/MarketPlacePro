@@ -45,6 +45,8 @@ namespace MarketPlacePro.Controllers
             var pedido = await _context.Pedidos
                 .AsNoTracking()
                 .Include(p => p.Comprador)
+                .Include(p => p.Detalles)
+                .Include(p => p.Pago)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
@@ -106,7 +108,7 @@ namespace MarketPlacePro.Controllers
                 };
                 if (await Persistencia.GuardarAsync(this, _context,
                     () => TotalesPedido.CrearAsync(_context, pedido)))
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction(nameof(Details), new { id = pedido.Id });
             }
             CargarCompradores(formulario.UsuarioId);
             CargarEstados(formulario.Estado);
@@ -190,7 +192,7 @@ namespace MarketPlacePro.Controllers
 
                 if (await Persistencia.GuardarAsync(this, _context,
                     () => TotalesPedido.GuardarAsync(_context, id)))
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction(nameof(Details), new { id });
             }
 
             pedido.Subtotal = pedidoExistente.Subtotal;

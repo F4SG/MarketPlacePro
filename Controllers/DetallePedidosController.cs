@@ -45,10 +45,12 @@ namespace MarketPlacePro.Controllers
             return View(detalle);
         }
 
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Create(long? pedidoId = null)
         {
-            await CargarListas();
-            return View();
+            if (pedidoId.HasValue && !await _context.Pedidos.AnyAsync(p => p.Id == pedidoId))
+                return NotFound();
+            await CargarListas(pedidoId);
+            return View(new DetallePedido { PedidoId = pedidoId ?? 0, Cantidad = 1 });
         }
 
         [HttpPost]
@@ -82,7 +84,7 @@ namespace MarketPlacePro.Controllers
                 _context.DetallesPedido.Add(detallePedido);
                 if (await Persistencia.GuardarAsync(this, _context,
                     () => TotalesPedido.GuardarAsync(_context, detallePedido.PedidoId)))
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction("Details", "Pedidos", new { id = detallePedido.PedidoId });
             }
 
             await CargarListas(detallePedido.PedidoId, detallePedido.ProductoId);
@@ -146,7 +148,7 @@ namespace MarketPlacePro.Controllers
 
                 if (await Persistencia.GuardarAsync(this, _context,
                     () => TotalesPedido.GuardarAsync(_context, pedidoAnteriorId, detallePedido.PedidoId)))
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction("Details", "Pedidos", new { id = detallePedido.PedidoId });
             }
 
             await CargarListas(detallePedido.PedidoId, detallePedido.ProductoId);
@@ -185,6 +187,8 @@ namespace MarketPlacePro.Controllers
                     return View("Delete", detalle);
             }
 
+            if (detalle != null)
+                return RedirectToAction("Details", "Pedidos", new { id = detalle.PedidoId });
             return RedirectToAction(nameof(Index));
         }
 

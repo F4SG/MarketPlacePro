@@ -63,10 +63,12 @@ namespace MarketPlacePro.Controllers
         }
 
         // GET: DetallesCarrito/Create
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Create(long? carritoId = null)
         {
-            await CargarListasAsync();
-            return View();
+            if (carritoId.HasValue && !await _context.Carritos.AnyAsync(c => c.Id == carritoId))
+                return NotFound();
+            await CargarListasAsync(carritoId);
+            return View(new DetalleCarrito { CarritoId = carritoId ?? 0, Cantidad = 1 });
         }
 
         // POST: DetallesCarrito/Create
@@ -91,7 +93,8 @@ namespace MarketPlacePro.Controllers
             {
                 detalleCarrito.FechaAgregado = DateTime.UtcNow;
                 _context.Add(detalleCarrito);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context))
+                    return RedirectToAction("Details", "Carritos", new { id = detalleCarrito.CarritoId });
             }
 
             await CargarListasAsync(detalleCarrito.CarritoId, detalleCarrito.ProductoId);
@@ -145,7 +148,8 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 _context.Update(detalleCarrito);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context))
+                    return RedirectToAction("Details", "Carritos", new { id = detalleCarrito.CarritoId });
             }
 
             await CargarListasAsync(detalleCarrito.CarritoId, detalleCarrito.ProductoId);
@@ -184,6 +188,8 @@ namespace MarketPlacePro.Controllers
             }
 
             await _context.SaveChangesAsync();
+            if (detalleCarrito != null)
+                return RedirectToAction("Details", "Carritos", new { id = detalleCarrito.CarritoId });
             return RedirectToAction(nameof(Index));
         }
 

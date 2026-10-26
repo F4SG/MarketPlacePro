@@ -299,6 +299,85 @@ await Check("Categoría sin productos sí se puede eliminar", async () =>
     Assert(await new CategoriasController(db).DeleteConfirmed(2) is RedirectToActionResult, "Se bloqueó una eliminación válida.");
     Assert(!await db.Categorias.AnyAsync(x => x.Id == 2), "La categoría no se eliminó.");
 });
+await Check("Confirmar carrito crea pedido completo y permite reutilizar el carrito", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1, Estado = "activo" });
+    db.DetallesCarrito.AddRange(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = 2 },
+        new DetalleCarrito { CarritoId = 1, ProductoId = 2, Cantidad = 3 });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    var pedido = await CompraCarrito.CrearPedidoAsync(db, 1);
+    db.ChangeTracker.Clear();
+    var saved = await db.Pedidos.Include(p => p.Detalles).SingleAsync(p => p.Id == pedido.Id);
+    Assert(saved.UsuarioId == 1 && saved.Estado == "pendiente" && saved.Total == 80 && saved.Subtotal == 80
+        && saved.Detalles.Count == 2, "El pedido no corresponde al carrito.");
+    Assert(!await db.DetallesCarrito.AnyAsync() && (await db.Carritos.FindAsync(1L))!.Estado == "activo",
+        "El carrito no quedó disponible.");
+    Assert((await db.Productos.FindAsync(1L))!.Stock == 5, "Se alteró el stock manual.");
+    try { await CompraCarrito.CrearPedidoAsync(db, 1); throw new Exception("Se duplicó el pedido."); }
+    catch (ValidationException) { }
+    Assert(await db.Pedidos.CountAsync() == 3, "Se creó un segundo pedido vacío.");
+    db.ChangeTracker.Clear();
+    (await db.Productos.FindAsync(1L))!.Precio = 99;
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    Assert((await db.DetallesPedido.SingleAsync(d => d.PedidoId == pedido.Id && d.ProductoId == 1)).PrecioUnitario == 10,
+        "No se conservó el precio de compra.");
+});
+await Check("Confirmación rechaza carrito inactivo o producto inactivo sin vaciarlo", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1, Estado = "abandonado" });
+    db.DetallesCarrito.Add(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = 1 });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    for (int i = 0; i < 2; i++)
+    {
+        try { await CompraCarrito.CrearPedidoAsync(db, 1); throw new Exception("Se aceptó el carrito inválido."); }
+        catch (ValidationException) { }
+        db.ChangeTracker.Clear();
+        Assert(await db.Pedidos.CountAsync() == 2 && await db.DetallesCarrito.CountAsync() == 1,
+            "La confirmación dejó cambios parciales.");
+        (await db.Carritos.FindAsync(1L))!.Estado = "activo";
+        (await db.Productos.FindAsync(1L))!.Estado = "inactivo";
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    }
+});
+await Check("Importe excesivo no crea pedido ni vacía el carrito", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1 });
+    db.DetallesCarrito.Add(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = int.MaxValue });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    try { await CompraCarrito.CrearPedidoAsync(db, 1); throw new Exception("Se aceptó el importe excesivo."); }
+    catch (ValidationException) { }
+    db.ChangeTracker.Clear();
+    Assert(await db.Pedidos.CountAsync() == 2 && await db.DetallesCarrito.CountAsync() == 1, "Se perdieron productos.");
+});
+await Check("Pago desde pedido precarga importe y evita un segundo pago", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db; await AddDetail(db);
+    var c = new PagosController(db);
+    var result = (ViewResult)await c.Create(pedidoId: 1);
+    var pago = (Pago)result.Model!;
+    Assert(pago.PedidoId == 1 && pago.Monto == 20, "Pago sin importe o pedido seleccionado.");
+    db.Pagos.Add(new Pago { PedidoId = 1, Metodo = "Efectivo", Monto = 20 });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    Assert(await c.Create(pedidoId: 1) is RedirectToActionResult { ActionName: "Edit" }, "Permitió otro formulario de pago.");
+});
+
+await Check("Error al guardar la compra revierte el vaciado del carrito", async () =>
+{
+    await using var f = await Fixture.Create(); var db = f.Db;
+    db.Carritos.Add(new Carrito { Id = 1, UsuarioId = 1 });
+    db.DetallesCarrito.Add(new DetalleCarrito { CarritoId = 1, ProductoId = 1, Cantidad = 2 });
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER FallarPedido BEFORE INSERT ON Pedidos BEGIN SELECT RAISE(ABORT, 'Fallo de prueba'); END;");
+    try { await CompraCarrito.CrearPedidoAsync(db, 1); throw new Exception("Faltó el fallo de persistencia."); }
+    catch (DbUpdateException) { }
+    db.ChangeTracker.Clear();
+    Assert(await db.Pedidos.CountAsync() == 2 && await db.DetallesPedido.CountAsync() == 0
+        && await db.DetallesCarrito.CountAsync() == 1, "La compra dejó cambios parciales.");
+});
+
 Console.WriteLine($"Resultado: {passed} correctas, {failures.Count} fallidas.");
 if (failures.Count > 0) Environment.ExitCode = 1;
 

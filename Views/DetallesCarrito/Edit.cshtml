@@ -45,7 +45,14 @@
 </div>
 
 <div>
-    <a asp-action="Index">Volver a la lista</a>
+    @if (Model != null && Model.CarritoId > 0)
+            {
+                <a asp-controller="Carritos" asp-action="Details" asp-route-id="@Model.CarritoId" class="btn btn-outline-secondary">Volver al carrito</a>
+            }
+            else
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary">Volver al listado</a>
+            }
 </div>
 
 @section Scripts {

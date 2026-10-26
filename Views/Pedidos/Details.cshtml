@@ -1,37 +1,58 @@
 @model MarketPlacePro.Models.Pedido
-
-@{
-    ViewData["Title"] = "Detalles del pedido";
-}
-
-<h1>Detalles del pedido</h1>
-
-<div>
-    <h4>Pedido</h4>
-    <hr />
-
-    <dl class="row">
-        <dt class="col-sm-3">Número de pedido</dt>
-        <dd class="col-sm-9">@Html.DisplayFor(model => model.NumeroPedido)</dd>
-
-        <dt class="col-sm-3">Subtotal</dt>
-        <dd class="col-sm-9">@Html.DisplayFor(model => model.Subtotal)</dd>
-
-        <dt class="col-sm-3">Total</dt>
-        <dd class="col-sm-9">@Html.DisplayFor(model => model.Total)</dd>
-
-        <dt class="col-sm-3">Estado</dt>
-        <dd class="col-sm-9">@Html.DisplayFor(model => model.Estado)</dd>
-
-        <dt class="col-sm-3">Fecha del pedido</dt>
-        <dd class="col-sm-9">@Html.DisplayFor(model => model.FechaPedido)</dd>
-
-        <dt class="col-sm-3">Comprador</dt>
-        <dd class="col-sm-9">@(Model.Comprador?.Nombre ?? "Sin comprador")</dd>
-    </dl>
+@{ ViewData["Title"] = "Pedido " + Model.NumeroPedido; }
+<div class="eyebrow mb-2">Paso 2 · Pedido</div>
+<h1 class="text-break">@ViewData["Title"]</h1>
+<dl class="row my-4">
+    <dt class="col-sm-3">Comprador</dt><dd class="col-sm-9">@Model.Comprador.Nombre</dd>
+    <dt class="col-sm-3">Estado</dt><dd class="col-sm-9"><span class="status-badge status-@Model.Estado">@Model.Estado.Replace("_", " ")</span></dd>
+    <dt class="col-sm-3">Fecha (Bolivia)</dt><dd class="col-sm-9">@(Model.FechaPedido?.AddHours(-4).ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</dd>
+</dl>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 class="h5 mb-0">Productos del pedido</h2>
+    <a asp-controller="DetallePedidos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-outline-primary">Agregar producto</a>
 </div>
-
-<div>
-    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Editar</a>
-    <a asp-action="Index" class="btn btn-secondary">Volver a la lista</a>
+@if (!Model.Detalles.Any())
+{
+    <div class="alert alert-warning mt-3">Este pedido antiguo no tiene productos. Agrega al menos uno para poder actualizarlo.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table">
+        <thead><tr><th>Producto</th><th class="text-end">Precio registrado</th><th class="text-end">Cantidad</th><th class="text-end">Subtotal</th><th>Acciones</th></tr></thead>
+        <tbody>
+        @foreach (var detalle in Model.Detalles.OrderBy(d => d.Id))
+        {
+            <tr><td>@detalle.NombreProducto</td><td class="text-end text-nowrap">Bs @detalle.PrecioUnitario.ToString("F2")</td>
+                <td class="text-end">@detalle.Cantidad</td><td class="text-end text-nowrap">Bs @detalle.Subtotal.ToString("F2")</td>
+                <td><a asp-controller="DetallePedidos" asp-action="Edit" asp-route-id="@detalle.Id" class="btn btn-sm btn-outline-secondary">Editar</a>
+                    @if (Model.Detalles.Count > 1)
+                    {
+                        <a asp-controller="DetallePedidos" asp-action="Delete" asp-route-id="@detalle.Id" class="btn btn-sm btn-outline-danger">Quitar</a>
+                    }
+                </td></tr>
+        }
+        </tbody>
+    </table></div>
+}
+<p class="text-end fs-5"><strong>Total: Bs @Model.Total.ToString("F2")</strong></p>
+<section class="border rounded-3 p-3 my-4">
+    <div class="eyebrow mb-2">Paso 3 · Pago</div>
+    @if (Model.Pago == null)
+    {
+        <h2 class="h5">Sin pago registrado</h2>
+        <p>Registra el pago de este pedido. El formulario tendrá el pedido y su importe seleccionados.</p>
+        <a asp-controller="Pagos" asp-action="Create" asp-route-pedidoId="@Model.Id" class="btn btn-primary">Registrar pago</a>
+    }
+    else
+    {
+        <h2 class="h5">@Model.Pago.Metodo · Bs @Model.Pago.Monto.ToString("F2")</h2>
+        <p><span class="status-badge status-@Model.Pago.Estado">@Model.Pago.Estado</span> <span class="ms-2">Referencia: @(Model.Pago.Referencia ?? "Sin referencia")</span></p>
+        <a asp-controller="Pagos" asp-action="Edit" asp-route-id="@Model.Pago.Id" class="btn btn-outline-primary">Editar pago</a>
+    }
+</section>
+<p class="text-muted">El estado del pedido se actualiza desde Editar pedido. Ventas por período muestra los pedidos completados de forma predeterminada.</p>
+<div class="d-flex flex-wrap gap-2">
+    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Editar pedido</a>
+    <a asp-controller="Reportes" asp-action="VentasPorPeriodo" class="btn btn-outline-secondary">Consultar ventas</a>
+    <a asp-action="Index" class="btn btn-outline-secondary">Volver a pedidos</a>
 </div>

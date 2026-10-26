@@ -28,11 +28,11 @@
     </section></div>
 </div>
 <h2 class="h5 mb-2">Gestiona una compra</h2>
-<p class="text-muted">El carrito organiza los productos. Por ahora, el pedido se registra por separado con su primer producto.</p>
+<p class="text-muted">Agrega productos al carrito, confirma el pedido y registra su pago.</p>
 <div class="row g-3 mb-4">
     <div class="col-md-4"><section class="module-card">
         <span class="step-number">1</span><h2>Organiza el carrito</h2>
-        <p>Crea el carrito del usuario y agrega productos desde Detalles del carrito.</p>
+        <p>Abre el carrito del usuario y agrega productos desde su propia pantalla.</p>
         <div class="d-flex flex-wrap gap-2">
             <a asp-controller="Carritos" asp-action="Index" class="btn btn-primary">Carritos</a>
             <a asp-controller="DetallesCarrito" asp-action="Index" class="btn btn-outline-secondary">Sus productos</a>
@@ -40,7 +40,7 @@
     </section></div>
     <div class="col-md-4"><section class="module-card">
         <span class="step-number">2</span><h2>Registra el pedido</h2>
-        <p>Selecciona al comprador y el primer producto. Agrega más productos desde Detalles de pedidos.</p>
+        <p>Confirma el carrito para crear un pedido con sus productos y precios actuales.</p>
         <div class="d-flex flex-wrap gap-2">
             <a asp-controller="Pedidos" asp-action="Index" class="btn btn-primary">Pedidos</a>
             <a asp-controller="DetallePedidos" asp-action="Index" class="btn btn-outline-secondary">Sus productos</a>
@@ -48,7 +48,7 @@
     </section></div>
     <div class="col-md-4"><section class="module-card">
         <span class="step-number">3</span><h2>Registra el pago</h2>
-        <p>Selecciona el pedido e ingresa el método, el monto y el estado de su pago.</p>
+        <p>Desde el pedido, registra el método, el monto y el estado del pago.</p>
         <a asp-controller="Pagos" asp-action="Index" class="btn btn-primary align-self-start">Pagos</a>
     </section></div>
 </div>

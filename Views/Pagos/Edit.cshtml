@@ -59,7 +59,14 @@
             </div>
 
             <button type="submit" class="btn btn-primary">Guardar cambios</button>
-            <a asp-action="Index" class="btn btn-secondary">Volver</a>
+            @if (Model != null && Model.PedidoId > 0)
+            {
+                <a asp-controller="Pedidos" asp-action="Details" asp-route-id="@Model.PedidoId" class="btn btn-outline-secondary">Volver al pedido</a>
+            }
+            else
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary">Volver al listado</a>
+            }
         </form>
     </div>
 </div>

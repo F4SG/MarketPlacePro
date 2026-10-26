@@ -37,7 +37,7 @@ public static class TotalesPedido
         await transaction.CommitAsync();
     }
 
-    private static void AsignarTotales(Pedido pedido, List<DetallePedido> detalles)
+    internal static void AsignarTotales(Pedido pedido, List<DetallePedido> detalles)
     {
         if (detalles.Count == 0)
             throw new ValidationException("Todo pedido debe conservar al menos un detalle. No puede eliminar ni trasladar el último producto; puede eliminar el pedido completo.");

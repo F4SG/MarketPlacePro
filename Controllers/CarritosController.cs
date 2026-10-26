@@ -35,7 +35,9 @@ namespace MarketPlacePro.Controllers
             }
 
             var carrito = await _context.Carritos
+                .AsNoTracking()
                 .Include(c => c.Usuario)
+                .Include(c => c.Detalles).ThenInclude(d => d.Producto)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (carrito == null)
             {
@@ -43,6 +45,24 @@ namespace MarketPlacePro.Controllers
             }
 
             return View(carrito);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearPedido(long id)
+        {
+            Pedido? pedido = null;
+            if (await Persistencia.GuardarAsync(this, _context,
+                async () => { pedido = await CompraCarrito.CrearPedidoAsync(_context, id); }))
+            {
+                TempData["Exito"] = "Pedido creado. Revisa sus productos y registra el pago cuando corresponda.";
+                return RedirectToAction("Details", "Pedidos", new { id = pedido!.Id });
+            }
+            _context.ChangeTracker.Clear();
+            var carrito = await _context.Carritos.AsNoTracking().Include(c => c.Usuario)
+                .Include(c => c.Detalles).ThenInclude(d => d.Producto)
+                .SingleOrDefaultAsync(c => c.Id == id);
+            if (carrito == null) return NotFound();
+            return View("Details", carrito);
         }
 
         private void CargarUsuarios(long? usuarioSeleccionado = null)
@@ -77,7 +97,7 @@ namespace MarketPlacePro.Controllers
             {
                 carrito.FechaCreacion = DateTime.UtcNow;
                 _context.Add(carrito);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Details), new { id = carrito.Id });
             }
 
             CargarUsuarios(carrito.UsuarioId);
@@ -127,7 +147,7 @@ namespace MarketPlacePro.Controllers
             if (ModelState.IsValid)
             {
                 _context.Update(carrito);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Details), new { id = carrito.Id });
             }
 
             CargarUsuarios(carrito.UsuarioId);
@@ -143,6 +163,7 @@ namespace MarketPlacePro.Controllers
             }
 
             var carrito = await _context.Carritos
+                .AsNoTracking()
                 .Include(c => c.Usuario)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (carrito == null)

@@ -73,6 +73,10 @@
             </nav>
         }
         <div class="@(controlador == "Home" && accion == "Index" ? "" : "page-surface")">
+            @if (TempData["Exito"] is string mensaje)
+            {
+                <div class="alert alert-success" role="status">@mensaje</div>
+            }
             @RenderBody()
         </div>
     </main>

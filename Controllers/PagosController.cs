@@ -51,10 +51,21 @@ namespace MarketPlacePro.Controllers
             return View(pago);
         }
 
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Create(long? pedidoId = null)
         {
-            await CargarPedidos();
-            return View(new Pago { FechaPago = DateTime.Now, Estado = "pendiente" });
+            var pago = new Pago { FechaPago = DateTime.Now, Estado = "pendiente" };
+            if (pedidoId.HasValue)
+            {
+                var pedido = await _context.Pedidos.AsNoTracking().Include(p => p.Pago)
+                    .SingleOrDefaultAsync(p => p.Id == pedidoId);
+                if (pedido == null) return NotFound();
+                if (pedido.Pago != null)
+                    return RedirectToAction(nameof(Edit), new { id = pedido.Pago.Id });
+                pago.PedidoId = pedido.Id;
+                pago.Monto = pedido.Total;
+            }
+            await CargarPedidos(pedidoId);
+            return View(pago);
         }
 
         [HttpPost]
@@ -90,7 +101,8 @@ namespace MarketPlacePro.Controllers
                     pago.FechaPago = DateTime.Now;
 
                 _context.Pagos.Add(pago);
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context))
+                    return RedirectToAction("Details", "Pedidos", new { id = pago.PedidoId });
             }
 
             await CargarPedidos(pago.PedidoId);
@@ -151,7 +163,8 @@ namespace MarketPlacePro.Controllers
                     : pago.FechaPago;
                 pagoExistente.PedidoId = pago.PedidoId;
 
-                if (await Persistencia.GuardarAsync(this, _context)) return RedirectToAction(nameof(Index));
+                if (await Persistencia.GuardarAsync(this, _context))
+                    return RedirectToAction("Details", "Pedidos", new { id = pago.PedidoId });
             }
 
             await CargarPedidos(pago.PedidoId, pago.Id);

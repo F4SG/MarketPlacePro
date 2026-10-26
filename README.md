@@ -98,7 +98,11 @@ Cada módulo tiene acceso desde el menú y desde la página de inicio. Las lista
 
 ### Reglas de pedidos e importes
 
-Un pedido se crea seleccionando el comprador, el estado, el primer producto y su cantidad. El pedido y ese detalle se guardan juntos. Para agregar más productos se utiliza el módulo Detalles de pedidos.
+Desde Carritos, abrir el carrito del usuario y usar Agregar producto. Al confirmar, se crea un pedido pendiente con todos sus productos y los precios vigentes. El pedido, sus detalles y el vaciado del carrito se guardan en una sola transacción. El carrito queda activo y puede reutilizarse; confirmar de nuevo un carrito vacío no crea otro pedido. Los carritos vacíos o no activos y los productos no activos se rechazan.
+
+También se puede registrar un pedido directamente seleccionando el comprador, el estado, el primer producto y su cantidad. El pedido y ese detalle se guardan juntos. Desde la pantalla del pedido se pueden agregar, editar o quitar productos, conservando al menos uno.
+
+La pantalla del pedido muestra sus productos, total y pago. Registrar pago abre el formulario con el pedido y su importe seleccionados. Registrar o editar un pago vuelve al pedido. El estado del pedido se cambia de forma manual desde Editar pedido; registrar un pago no lo marca automáticamente como completado.
 
 Todo pedido conserva al menos un detalle, incluso estando pendiente. No se permite eliminar ni trasladar su último detalle; sí se puede eliminar el pedido completo.
 
@@ -106,7 +110,7 @@ El subtotal de un detalle es su precio unitario por la cantidad. El subtotal y e
 
 Un usuario puede no tener carrito y un producto puede no tener ventas. Cada carrito pertenece a un usuario, con un máximo de un carrito por usuario. Cada pedido admite como máximo un pago.
 
-El stock se administra desde Productos y los pagos se registran manualmente. No se incluyen descuentos, impuestos, pasarela de cobro ni conversión automática de carritos a pedidos.
+El stock se administra desde Productos y los pagos se registran manualmente. No se incluyen descuentos, impuestos ni pasarela de cobro.
 
 ## Reportes
 
